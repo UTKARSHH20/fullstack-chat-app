@@ -254,9 +254,6 @@ This project was built and tested with passion. Special thanks to the core contr
 </a>
 
 * **Utkarsh** (Lead Developer)
-* **Harsh**
-* **Pratikshya**
-* **Aryan**
 
 Contributions are welcome! To get started:
 
