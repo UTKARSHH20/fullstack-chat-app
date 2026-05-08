@@ -2,19 +2,20 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
+    ArrowLeft, PenSquare,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
 import useChatStore from "../src/store/useChatStore"
 import { getSocket } from "../lib/socket"
 
-// ── Helpers ─────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
 
-// ── Avatar ───────────────────────────────────────────────────────────
+// ── Avatar ────────────────────────────────────────────────────────
 const Avatar = ({ user, size = "md", isOnline = false }) => {
     const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm"
     return (
@@ -30,14 +31,11 @@ const Avatar = ({ user, size = "md", isOnline = false }) => {
     )
 }
 
-// ── WhatsApp-style context menu ──────────────────────────────────────
+// ── Context menu ──────────────────────────────────────────────────
 function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
     const ref = useRef(null)
-
     useEffect(() => {
-        const handler = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) onClose()
-        }
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
         const t = setTimeout(() => window.addEventListener("click", handler), 10)
         return () => { clearTimeout(t); window.removeEventListener("click", handler) }
     }, [onClose])
@@ -60,58 +58,36 @@ function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
             className="bg-base-200 border border-base-300 rounded-2xl shadow-2xl overflow-hidden w-52"
             onClick={e => e.stopPropagation()}
         >
-            {/* Emoji reactions */}
             <div className="flex items-center justify-around px-3 py-2.5 border-b border-base-300">
                 {EMOJIS.map(e => (
-                    <button
-                        key={e}
-                        onClick={() => { toast(`Reacted ${e}`, { duration: 1200 }); onClose() }}
-                        className="text-xl hover:scale-125 active:scale-150 transition-transform"
-                    >
-                        {e}
-                    </button>
+                    <button key={e} onClick={() => { toast(`Reacted ${e}`, { duration: 1200 }); onClose() }}
+                        className="text-xl hover:scale-125 active:scale-150 transition-transform">{e}</button>
                 ))}
-                <button
-                    onClick={() => { toast("More reactions — coming soon"); onClose() }}
-                    className="w-6 h-6 rounded-full bg-base-300 text-xs flex items-center justify-center hover:bg-base-content/20"
-                >
-                    +
-                </button>
+                <button onClick={() => { toast("More reactions — coming soon"); onClose() }}
+                    className="w-6 h-6 rounded-full bg-base-300 text-xs flex items-center justify-center hover:bg-base-content/20">+</button>
             </div>
-
-            {/* Actions */}
             {actions.map(({ icon: Icon, label, fn, danger }) => (
-                <button
-                    key={label}
-                    onClick={fn}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-base-300 transition-colors ${danger ? "text-error" : "text-base-content"}`}
-                >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {label}
+                <button key={label} onClick={fn}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-base-300 transition-colors ${danger ? "text-error" : "text-base-content"}`}>
+                    <Icon className="w-4 h-4 shrink-0" />{label}
                 </button>
             ))}
         </div>
     )
 }
 
-// ── Reply preview inside a bubble ────────────────────────────────────
+// ── Reply preview inside bubble ───────────────────────────────────
 function ReplyPreview({ replyTo, isMine }) {
     return (
-        <div className={`
-            mb-1.5 px-2 py-1.5 rounded-lg text-xs border-l-[3px]
-            ${isMine
-                ? "bg-white/10 border-white/50 text-white/80"
-                : "bg-base-300/60 border-primary text-base-content/70"}
-        `}>
-            <p className={`font-bold mb-0.5 ${isMine ? "text-white" : "text-primary"}`}>
-                {replyTo.senderName}
-            </p>
+        <div className={`mb-1.5 px-2 py-1.5 rounded-lg text-xs border-l-[3px]
+            ${isMine ? "bg-white/10 border-white/50 text-white/80" : "bg-base-300/60 border-primary text-base-content/70"}`}>
+            <p className={`font-bold mb-0.5 ${isMine ? "text-white" : "text-primary"}`}>{replyTo.senderName}</p>
             <p className="truncate opacity-80">{replyTo.message || "📎 Attachment"}</p>
         </div>
     )
 }
 
-// ── Reply bar above input ─────────────────────────────────────────────
+// ── Reply bar above input ─────────────────────────────────────────
 function ReplyBar({ replyTo, authUser, selectedUser, onCancel }) {
     const name = replyTo.senderId === authUser?._id ? "You" : selectedUser?.name
     return (
@@ -128,11 +104,84 @@ function ReplyBar({ replyTo, authUser, selectedUser, onCancel }) {
     )
 }
 
-// ── Sidebar ──────────────────────────────────────────────────────────
-function Sidebar({ selectedUser, onSelectUser }) {
+// ── New Chat Modal ────────────────────────────────────────────────
+function NewChatModal({ onSelectUser, onClose }) {
+    const { searchUsers } = useChatStore()
+    const { onlineUsers } = useAuthStore()
+    const [query, setQuery] = useState("")
+    const [results, setResults] = useState([])
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        if (!query.trim()) { setResults([]); return }
+        const t = setTimeout(async () => {
+            setLoading(true)
+            const data = await searchUsers(query)
+            setResults(data)
+            setLoading(false)
+        }, 300)
+        return () => clearTimeout(t)
+    }, [query, searchUsers])
+
+    return (
+        <div className="absolute inset-0 bg-base-100 z-20 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-base-200">
+                <button onClick={onClose} className="btn btn-ghost btn-sm btn-circle">
+                    <ArrowLeft className="w-4 h-4" />
+                </button>
+                <label className="input input-bordered input-sm flex items-center gap-2 flex-1">
+                    <Search className="w-3.5 h-3.5 text-base-content/40" />
+                    <input
+                        autoFocus
+                        type="text"
+                        placeholder="Search by name…"
+                        className="grow bg-transparent outline-none text-sm"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                    />
+                </label>
+            </div>
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto">
+                {loading && (
+                    <div className="flex justify-center py-8">
+                        <span className="loading loading-spinner loading-md text-primary" />
+                    </div>
+                )}
+                {!loading && query && results.length === 0 && (
+                    <p className="text-center text-base-content/40 text-sm py-8">No users found</p>
+                )}
+                {!loading && !query && (
+                    <p className="text-center text-base-content/40 text-sm py-8">Type a name to search</p>
+                )}
+                {results.map(user => {
+                    const isOnline = onlineUsers.includes(user._id)
+                    return (
+                        <button key={user._id}
+                            onClick={() => { onSelectUser(user); onClose() }}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-base-200 transition-colors">
+                            <Avatar user={user} isOnline={isOnline} />
+                            <div className="min-w-0 text-left">
+                                <p className="font-medium text-sm truncate">{user.name}</p>
+                                <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                    {isOnline ? "Online" : "Offline"}
+                                </p>
+                            </div>
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────
+function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
     const { users, getUsers, isUsersLoading } = useChatStore()
     const { onlineUsers } = useAuthStore()
     const [search, setSearch] = useState("")
+    const [showNewChat, setShowNewChat] = useState(false)
 
     useEffect(() => { getUsers() }, [getUsers])
 
@@ -146,19 +195,32 @@ function Sidebar({ selectedUser, onSelectUser }) {
     const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()))
 
     return (
-        <aside className="w-72 shrink-0 flex flex-col border-r border-base-200 bg-base-100 h-full">
+        <aside className={`
+            ${isMobileHidden ? "hidden md:flex" : "flex"}
+            w-full md:w-72 shrink-0 flex-col border-r border-base-200 bg-base-100 h-full relative
+        `}>
+            {/* Header */}
             <div className="p-4 border-b border-base-200">
-                <h2 className="font-bold text-lg mb-3">
-                    Messages
-                    {onlineUsers.length > 0 && (
-                        <span className="ml-2 badge badge-success badge-sm">{onlineUsers.length} online</span>
-                    )}
-                </h2>
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="font-bold text-lg">
+                        Messages
+                        {onlineUsers.length > 0 && (
+                            <span className="ml-2 badge badge-success badge-sm">{onlineUsers.length} online</span>
+                        )}
+                    </h2>
+                    <button
+                        onClick={() => setShowNewChat(true)}
+                        className="btn btn-ghost btn-sm btn-circle"
+                        title="New chat"
+                    >
+                        <PenSquare className="w-4 h-4" />
+                    </button>
+                </div>
                 <label className="input input-bordered input-sm flex items-center gap-2 w-full">
                     <Search className="w-3.5 h-3.5 text-base-content/40" />
                     <input
                         type="text"
-                        placeholder="Search people…"
+                        placeholder="Search conversations…"
                         className="grow bg-transparent outline-none text-sm"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
@@ -166,13 +228,22 @@ function Sidebar({ selectedUser, onSelectUser }) {
                 </label>
             </div>
 
+            {/* User list */}
             <div className="flex-1 overflow-y-auto">
                 {isUsersLoading ? (
                     <div className="flex items-center justify-center h-32">
                         <span className="loading loading-spinner loading-md text-primary" />
                     </div>
+                ) : users.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+                        <PenSquare className="w-10 h-10 text-base-content/20" />
+                        <p className="text-base-content/40 text-sm">No conversations yet</p>
+                        <button onClick={() => setShowNewChat(true)} className="btn btn-primary btn-sm">
+                            Start a new chat
+                        </button>
+                    </div>
                 ) : filtered.length === 0 ? (
-                    <p className="text-center text-base-content/40 text-sm py-8">No users found</p>
+                    <p className="text-center text-base-content/40 text-sm py-8">No results</p>
                 ) : (
                     filtered.map(user => {
                         const isOnline = onlineUsers.includes(user._id)
@@ -201,12 +272,20 @@ function Sidebar({ selectedUser, onSelectUser }) {
                     })
                 )}
             </div>
+
+            {/* New Chat Modal (overlays sidebar) */}
+            {showNewChat && (
+                <NewChatModal
+                    onSelectUser={onSelectUser}
+                    onClose={() => setShowNewChat(false)}
+                />
+            )}
         </aside>
     )
 }
 
-// ── Chat window ──────────────────────────────────────────────────────
-function ChatWindow({ selectedUser }) {
+// ── Chat window ───────────────────────────────────────────────────
+function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const {
         messages, getMessages, sendMessage, deleteMessage,
         isMessagesLoading, subscribeToMessages, unsubscribeFromMessages,
@@ -245,32 +324,21 @@ function ChatWindow({ selectedUser }) {
         setContextMenu({ visible: true, x, y, message: msg, isMine })
     }
 
-    const handleReply = () => {
-        setReplyTo(contextMenu.message)
-        closeMenu()
-    }
-
-    const handleCopy = () => {
+    const handleReply  = () => { setReplyTo(contextMenu.message); closeMenu() }
+    const handleCopy   = () => {
         if (contextMenu.message?.message) {
             navigator.clipboard.writeText(contextMenu.message.message)
             toast.success("Copied!")
         }
         closeMenu()
     }
-
-    const handleDelete = async () => {
-        await deleteMessage(contextMenu.message._id)
-        closeMenu()
-    }
+    const handleDelete = async () => { await deleteMessage(contextMenu.message._id); closeMenu() }
 
     const handleImage = (e) => {
         const file = e.target.files[0]
         if (!file) return
         const reader = new FileReader()
-        reader.onloadend = () => {
-            setImagePreview(URL.createObjectURL(file))
-            setImageBase64(reader.result)
-        }
+        reader.onloadend = () => { setImagePreview(URL.createObjectURL(file)); setImageBase64(reader.result) }
         reader.readAsDataURL(file)
     }
 
@@ -281,15 +349,12 @@ function ChatWindow({ selectedUser }) {
             message: text.trim(),
             image: imageBase64 || "",
             replyTo: replyTo ? {
-                _id:        replyTo._id,
-                message:    replyTo.message,
+                _id: replyTo._id,
+                message: replyTo.message,
                 senderName: replyTo.senderId === authUser._id ? authUser.name : selectedUser.name,
             } : null,
         })
-        setText("")
-        setImagePreview(null)
-        setImageBase64(null)
-        setReplyTo(null)
+        setText(""); setImagePreview(null); setImageBase64(null); setReplyTo(null)
         setSending(false)
     }
 
@@ -299,8 +364,9 @@ function ChatWindow({ selectedUser }) {
 
     const isOnline = selectedUser && onlineUsers.includes(selectedUser._id)
 
+    // Empty state
     if (!selectedUser) return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-base-200 gap-4">
+        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-200 gap-4`}>
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
                 <MessageSquare className="w-10 h-10 text-primary/50" />
             </div>
@@ -312,9 +378,16 @@ function ChatWindow({ selectedUser }) {
     )
 
     return (
-        <div className="flex-1 flex flex-col bg-base-100 min-w-0">
+        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0`}>
             {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-3 border-b border-base-200 shadow-sm">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-base-200 shadow-sm">
+                {/* Back button — mobile only */}
+                <button
+                    onClick={onBack}
+                    className="md:hidden btn btn-ghost btn-sm btn-circle shrink-0"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                </button>
                 <Avatar user={selectedUser} isOnline={isOnline} />
                 <div>
                     <p className="font-semibold text-sm">{selectedUser.name}</p>
@@ -336,8 +409,8 @@ function ChatWindow({ selectedUser }) {
                     </div>
                 ) : (
                     messages.map((msg, i) => {
-                        const isMine  = msg.senderId === authUser?._id
-                        const prev    = messages[i - 1]
+                        const isMine = msg.senderId === authUser?._id
+                        const prev   = messages[i - 1]
                         const showTime = !prev || Math.abs(
                             new Date(msg.createdAt) - new Date(prev.createdAt)
                         ) > 3 * 60 * 1000
@@ -356,21 +429,13 @@ function ChatWindow({ selectedUser }) {
                                         </div>
                                     )}
                                     <div
-                                        className={`
-                                            chat-bubble shadow-sm max-w-[70%] break-words cursor-pointer
-                                            select-none
-                                            ${isMine ? "chat-bubble-primary" : ""}
-                                        `}
+                                        className={`chat-bubble shadow-sm max-w-[75%] break-words cursor-pointer select-none ${isMine ? "chat-bubble-primary" : ""}`}
                                         onContextMenu={e => handleContextMenu(e, msg, isMine)}
                                     >
-                                        {/* Reply preview */}
-                                        {msg.replyTo?.message && (
-                                            <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />
-                                        )}
+                                        {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
                                         {msg.image && (
                                             <img
-                                                src={msg.image}
-                                                alt="attachment"
+                                                src={msg.image} alt="attachment"
                                                 className="max-w-full rounded-lg mb-1 cursor-pointer"
                                                 onClick={() => window.open(msg.image, "_blank")}
                                             />
@@ -391,37 +456,20 @@ function ChatWindow({ selectedUser }) {
             </div>
 
             {/* Context menu */}
-            <ContextMenu
-                menu={contextMenu}
-                onClose={closeMenu}
-                onReply={handleReply}
-                onCopy={handleCopy}
-                onDelete={handleDelete}
-            />
+            <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} />
 
             {/* Reply bar */}
             {replyTo && (
-                <ReplyBar
-                    replyTo={replyTo}
-                    authUser={authUser}
-                    selectedUser={selectedUser}
-                    onCancel={() => setReplyTo(null)}
-                />
+                <ReplyBar replyTo={replyTo} authUser={authUser} selectedUser={selectedUser} onCancel={() => setReplyTo(null)} />
             )}
 
             {/* Image preview */}
             {imagePreview && (
                 <div className="px-4 pb-2">
                     <div className="relative inline-block">
-                        <img
-                            src={imagePreview}
-                            alt="preview"
-                            className="h-20 w-auto rounded-lg object-cover border border-base-300"
-                        />
-                        <button
-                            onClick={() => { setImagePreview(null); setImageBase64(null) }}
-                            className="absolute -top-2 -right-2 btn btn-circle btn-xs btn-error"
-                        >
+                        <img src={imagePreview} alt="preview" className="h-20 w-auto rounded-lg object-cover border border-base-300" />
+                        <button onClick={() => { setImagePreview(null); setImageBase64(null) }}
+                            className="absolute -top-2 -right-2 btn btn-circle btn-xs btn-error">
                             <X className="w-3 h-3" />
                         </button>
                     </div>
@@ -429,16 +477,12 @@ function ChatWindow({ selectedUser }) {
             )}
 
             {/* Input bar */}
-            <div className="px-4 py-3 border-t border-base-200 flex items-end gap-2">
-                <button
-                    onClick={() => fileRef.current?.click()}
-                    className="btn btn-ghost btn-sm btn-square shrink-0"
-                    title="Attach image"
-                >
+            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2">
+                <button onClick={() => fileRef.current?.click()}
+                    className="btn btn-ghost btn-sm btn-square shrink-0" title="Attach image">
                     <Image className="w-4 h-4 text-base-content/50" />
                 </button>
                 <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
-
                 <textarea
                     rows={1}
                     placeholder="Type a message…"
@@ -447,29 +491,35 @@ function ChatWindow({ selectedUser }) {
                     onChange={e => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
                 />
-
-                <button
-                    onClick={handleSend}
-                    disabled={(!text.trim() && !imageBase64) || sending}
-                    className="btn btn-primary btn-sm btn-square shrink-0"
-                >
-                    {sending
-                        ? <span className="loading loading-spinner loading-xs" />
-                        : <Send className="w-4 h-4" />
-                    }
+                <button onClick={handleSend} disabled={(!text.trim() && !imageBase64) || sending}
+                    className="btn btn-primary btn-sm btn-square shrink-0">
+                    {sending ? <span className="loading loading-spinner loading-xs" /> : <Send className="w-4 h-4" />}
                 </button>
             </div>
         </div>
     )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────
 export default function ChatPage() {
     const { setSelectedUser, selectedUser } = useChatStore()
+
+    // On mobile: if user selected → hide sidebar, show chat
+    // On desktop: always show both
+    const chatSelected = !!selectedUser
+
     return (
-        <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-base-200">
-            <Sidebar selectedUser={selectedUser} onSelectUser={setSelectedUser} />
-            <ChatWindow selectedUser={selectedUser} />
+        <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-base-200 relative">
+            <Sidebar
+                selectedUser={selectedUser}
+                onSelectUser={setSelectedUser}
+                isMobileHidden={chatSelected}  // hide sidebar on mobile when chat open
+            />
+            <ChatWindow
+                selectedUser={selectedUser}
+                onBack={() => setSelectedUser(null)}
+                isMobileHidden={!chatSelected} // hide chat on mobile when no user selected
+            />
         </div>
     )
 }

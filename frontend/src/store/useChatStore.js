@@ -4,12 +4,13 @@ import axiosInstance from "../../lib/axios";
 import { getSocket } from "../../lib/socket";
 
 const useChatStore = create((set, get) => ({
-    users:              [],
-    selectedUser:       null,
-    messages:           [],
-    isUsersLoading:     false,
-    isMessagesLoading:  false,
+    users:             [],
+    selectedUser:      null,
+    messages:          [],
+    isUsersLoading:    false,
+    isMessagesLoading: false,
 
+    // Sidebar — only conversation partners
     getUsers: async () => {
         set({ isUsersLoading: true });
         try {
@@ -19,6 +20,17 @@ const useChatStore = create((set, get) => ({
             toast.error(error.response?.data?.message || "Failed to load users");
         } finally {
             set({ isUsersLoading: false });
+        }
+    },
+
+    // Search all users by name (for "New Chat")
+    searchUsers: async (query) => {
+        try {
+            const res = await axiosInstance.get(`/messages/search?q=${encodeURIComponent(query)}`);
+            return res.data;
+        } catch (error) {
+            toast.error("Search failed");
+            return [];
         }
     },
 
@@ -51,7 +63,7 @@ const useChatStore = create((set, get) => ({
             set({ messages: get().messages.filter(m => m._id !== messageId) });
             toast.success("Message deleted");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to delete message");
+            toast.error(error.response?.data?.message || "Failed to delete");
         }
     },
 
@@ -78,6 +90,7 @@ const useChatStore = create((set, get) => ({
     },
 
     setSelectedUser: (user) => {
+        if (!user) return set({ selectedUser: null, messages: [] });  // allow null (back button)
         const current = get().selectedUser;
         if (current?._id === user?._id) return;
         set({ selectedUser: user, messages: [] });
