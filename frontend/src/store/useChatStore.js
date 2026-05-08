@@ -4,13 +4,12 @@ import axiosInstance from "../../lib/axios";
 import { getSocket } from "../../lib/socket";
 
 const useChatStore = create((set, get) => ({
-    users:             [],
-    selectedUser:      null,
-    messages:          [],
-    isUsersLoading:    false,
+    users: [],
+    selectedUser: null,
+    messages: [],
+    isUsersLoading: false,
     isMessagesLoading: false,
 
-    // Sidebar — only conversation partners
     getUsers: async () => {
         set({ isUsersLoading: true });
         try {
@@ -23,12 +22,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
-    // Search all users by name (for "New Chat")
     searchUsers: async (query) => {
         try {
             const res = await axiosInstance.get(`/messages/search?q=${encodeURIComponent(query)}`);
             return res.data;
-        } catch (error) {
+        } catch {
             toast.error("Search failed");
             return [];
         }
@@ -90,7 +88,7 @@ const useChatStore = create((set, get) => ({
     },
 
     setSelectedUser: (user) => {
-        if (!user) return set({ selectedUser: null, messages: [] });  // allow null (back button)
+        if (!user) return set({ selectedUser: null, messages: [] });
         const current = get().selectedUser;
         if (current?._id === user?._id) return;
         set({ selectedUser: user, messages: [] });

@@ -9,7 +9,6 @@ import useAuthStore from "../src/store/useAuthStore"
 import useChatStore from "../src/store/useChatStore"
 import { getSocket } from "../lib/socket"
 
-// ── Helpers ───────────────────────────────────────────────────────
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
@@ -92,7 +91,6 @@ function EmojiPicker({ onSelect, onClose }) {
     )
 }
 
-// ── Avatar ────────────────────────────────────────────────────────
 const Avatar = ({ user, size = "md", isOnline = false }) => {
     const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm"
     return (
@@ -108,7 +106,6 @@ const Avatar = ({ user, size = "md", isOnline = false }) => {
     )
 }
 
-// ── Context menu ──────────────────────────────────────────────────
 function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
     const ref = useRef(null)
     useEffect(() => {
@@ -153,7 +150,6 @@ function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
     )
 }
 
-// ── Reply preview inside bubble ───────────────────────────────────
 function ReplyPreview({ replyTo, isMine }) {
     return (
         <div className={`mb-1.5 px-2 py-1.5 rounded-lg text-xs border-l-[3px]
@@ -164,7 +160,6 @@ function ReplyPreview({ replyTo, isMine }) {
     )
 }
 
-// ── Reply bar above input ─────────────────────────────────────────
 function ReplyBar({ replyTo, authUser, selectedUser, onCancel }) {
     const name = replyTo.senderId === authUser?._id ? "You" : selectedUser?.name
     return (
@@ -181,7 +176,6 @@ function ReplyBar({ replyTo, authUser, selectedUser, onCancel }) {
     )
 }
 
-// ── New Chat Modal ────────────────────────────────────────────────
 function NewChatModal({ onSelectUser, onClose }) {
     const { searchUsers } = useChatStore()
     const { onlineUsers } = useAuthStore()
@@ -253,7 +247,6 @@ function NewChatModal({ onSelectUser, onClose }) {
     )
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────
 function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
     const { users, getUsers, isUsersLoading } = useChatStore()
     const { onlineUsers } = useAuthStore()
@@ -276,7 +269,6 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
             ${isMobileHidden ? "hidden md:flex" : "flex"}
             w-full md:w-72 shrink-0 flex-col border-r border-base-200 bg-base-100 h-full relative
         `}>
-            {/* Header */}
             <div className="p-4 border-b border-base-200">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="font-bold text-lg">
@@ -305,7 +297,6 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                 </label>
             </div>
 
-            {/* User list */}
             <div className="flex-1 overflow-y-auto">
                 {isUsersLoading ? (
                     <div className="flex items-center justify-center h-32">
@@ -350,7 +341,6 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                 )}
             </div>
 
-            {/* New Chat Modal (overlays sidebar) */}
             {showNewChat && (
                 <NewChatModal
                     onSelectUser={onSelectUser}
@@ -361,7 +351,6 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
     )
 }
 
-// ── Chat window ───────────────────────────────────────────────────
 function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const {
         messages, getMessages, sendMessage, deleteMessage,
@@ -444,7 +433,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
     const isOnline = selectedUser && onlineUsers.includes(selectedUser._id)
 
-    // Empty state
     if (!selectedUser) return (
         <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-200 gap-4`}>
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
@@ -459,9 +447,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
     return (
         <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0`}>
-            {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-base-200 shadow-sm">
-                {/* Back button — mobile only */}
                 <button
                     onClick={onBack}
                     className="md:hidden btn btn-ghost btn-sm btn-circle shrink-0"
@@ -477,7 +463,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
@@ -512,7 +497,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                         className={`chat-bubble shadow-sm max-w-[75%] break-words cursor-pointer select-none ${isMine ? "chat-bubble-primary" : ""}`}
                                         onContextMenu={e => handleContextMenu(e, msg, isMine)}
                                     >
-                                        {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
+                {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
                                         {msg.image && (
                                             <img
                                                 src={msg.image} alt="attachment"
@@ -535,15 +520,12 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <div ref={bottomRef} />
             </div>
 
-            {/* Context menu */}
             <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} />
 
-            {/* Reply bar */}
             {replyTo && (
                 <ReplyBar replyTo={replyTo} authUser={authUser} selectedUser={selectedUser} onCancel={() => setReplyTo(null)} />
             )}
 
-            {/* Image preview */}
             {imagePreview && (
                 <div className="px-4 pb-2">
                     <div className="relative inline-block">
@@ -556,7 +538,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             )}
 
-            {/* Input bar */}
             <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative">
                 {showEmoji && (
                     <EmojiPicker
@@ -566,7 +547,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                 const start = el.selectionStart
                                 const end   = el.selectionEnd
                                 setText(prev => prev.slice(0, start) + emoji + prev.slice(end))
-                                // restore cursor after emoji
                                 setTimeout(() => {
                                     el.focus()
                                     el.setSelectionRange(start + emoji.length, start + emoji.length)
@@ -583,7 +563,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     <Image className="w-4 h-4 text-base-content/50" />
                 </button>
                 <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
-                {/* Emoji button */}
                 <button
                     onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
                     className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
@@ -609,7 +588,6 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     )
 }
 
-// ── Page ──────────────────────────────────────────────────────────
 export default function ChatPage() {
     const { setSelectedUser, selectedUser } = useChatStore()
 
