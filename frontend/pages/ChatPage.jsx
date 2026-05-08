@@ -1,13 +1,20 @@
-import { useEffect, useRef, useState } from "react"
-import { Image, Send, X, MessageSquare, Search } from "lucide-react"
+import { useEffect, useRef, useState, useCallback } from "react"
+import {
+    Image, Send, X, MessageSquare, Search,
+    Reply, Copy, Trash2, Forward, Pin, Star,
+} from "lucide-react"
+import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
 import useChatStore from "../src/store/useChatStore"
 import { getSocket } from "../lib/socket"
 
-// ── Helpers ────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
+const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+
+// ── Avatar ───────────────────────────────────────────────────────────
 const Avatar = ({ user, size = "md", isOnline = false }) => {
     const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm"
     return (
@@ -18,15 +25,110 @@ const Avatar = ({ user, size = "md", isOnline = false }) => {
                     {user?.name?.charAt(0).toUpperCase() || "?"}
                   </div>
             }
-            <span className={`
-                absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-base-100
-                ${isOnline ? "bg-success" : "bg-base-300"}
-            `} />
+            <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-base-100 ${isOnline ? "bg-success" : "bg-base-300"}`} />
         </div>
     )
 }
 
-// ── Sidebar ─────────────────────────────────────────────────────────
+// ── WhatsApp-style context menu ──────────────────────────────────────
+function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
+    const ref = useRef(null)
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) onClose()
+        }
+        const t = setTimeout(() => window.addEventListener("click", handler), 10)
+        return () => { clearTimeout(t); window.removeEventListener("click", handler) }
+    }, [onClose])
+
+    if (!menu.visible) return null
+
+    const actions = [
+        { icon: Reply,   label: "Reply",   fn: onReply },
+        { icon: Copy,    label: "Copy",    fn: onCopy,   hide: !menu.message?.message },
+        { icon: Forward, label: "Forward", fn: () => { toast("Forward — coming soon 🔜"); onClose() } },
+        { icon: Pin,     label: "Pin",     fn: () => { toast("Pin — coming soon 📌");     onClose() } },
+        { icon: Star,    label: "Star",    fn: () => { toast("Star — coming soon ⭐");    onClose() } },
+        { icon: Trash2,  label: "Delete",  fn: onDelete, hide: !menu.isMine, danger: true },
+    ].filter(a => !a.hide)
+
+    return (
+        <div
+            ref={ref}
+            style={{ position: "fixed", top: menu.y, left: menu.x, zIndex: 9999 }}
+            className="bg-base-200 border border-base-300 rounded-2xl shadow-2xl overflow-hidden w-52"
+            onClick={e => e.stopPropagation()}
+        >
+            {/* Emoji reactions */}
+            <div className="flex items-center justify-around px-3 py-2.5 border-b border-base-300">
+                {EMOJIS.map(e => (
+                    <button
+                        key={e}
+                        onClick={() => { toast(`Reacted ${e}`, { duration: 1200 }); onClose() }}
+                        className="text-xl hover:scale-125 active:scale-150 transition-transform"
+                    >
+                        {e}
+                    </button>
+                ))}
+                <button
+                    onClick={() => { toast("More reactions — coming soon"); onClose() }}
+                    className="w-6 h-6 rounded-full bg-base-300 text-xs flex items-center justify-center hover:bg-base-content/20"
+                >
+                    +
+                </button>
+            </div>
+
+            {/* Actions */}
+            {actions.map(({ icon: Icon, label, fn, danger }) => (
+                <button
+                    key={label}
+                    onClick={fn}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-base-300 transition-colors ${danger ? "text-error" : "text-base-content"}`}
+                >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {label}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+// ── Reply preview inside a bubble ────────────────────────────────────
+function ReplyPreview({ replyTo, isMine }) {
+    return (
+        <div className={`
+            mb-1.5 px-2 py-1.5 rounded-lg text-xs border-l-[3px]
+            ${isMine
+                ? "bg-white/10 border-white/50 text-white/80"
+                : "bg-base-300/60 border-primary text-base-content/70"}
+        `}>
+            <p className={`font-bold mb-0.5 ${isMine ? "text-white" : "text-primary"}`}>
+                {replyTo.senderName}
+            </p>
+            <p className="truncate opacity-80">{replyTo.message || "📎 Attachment"}</p>
+        </div>
+    )
+}
+
+// ── Reply bar above input ─────────────────────────────────────────────
+function ReplyBar({ replyTo, authUser, selectedUser, onCancel }) {
+    const name = replyTo.senderId === authUser?._id ? "You" : selectedUser?.name
+    return (
+        <div className="flex items-center gap-3 px-4 py-2 bg-base-200 border-t border-base-300">
+            <div className="w-0.5 self-stretch bg-primary rounded-full" />
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-primary">{name}</p>
+                <p className="text-xs text-base-content/50 truncate">{replyTo.message || "📎 Attachment"}</p>
+            </div>
+            <button onClick={onCancel} className="btn btn-ghost btn-xs btn-circle shrink-0">
+                <X className="w-3 h-3" />
+            </button>
+        </div>
+    )
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────
 function Sidebar({ selectedUser, onSelectUser }) {
     const { users, getUsers, isUsersLoading } = useChatStore()
     const { onlineUsers } = useAuthStore()
@@ -34,19 +136,14 @@ function Sidebar({ selectedUser, onSelectUser }) {
 
     useEffect(() => { getUsers() }, [getUsers])
 
-    // listen for online users updates
     useEffect(() => {
         const socket = getSocket()
         if (!socket) return
-        socket.on("getOnlineUsers", (userIds) => {
-            useAuthStore.getState().setOnlineUsers(userIds)
-        })
+        socket.on("getOnlineUsers", (ids) => useAuthStore.getState().setOnlineUsers(ids))
         return () => socket.off("getOnlineUsers")
     }, [])
 
-    const filtered = users.filter(u =>
-        u.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()))
 
     return (
         <aside className="w-72 shrink-0 flex flex-col border-r border-base-200 bg-base-100 h-full">
@@ -83,7 +180,7 @@ function Sidebar({ selectedUser, onSelectUser }) {
                             <button
                                 key={user._id}
                                 onClick={() => onSelectUser(user)}
-                                onDoubleClick={(e) => e.preventDefault()}
+                                onDoubleClick={e => e.preventDefault()}
                                 className={`
                                     w-full flex items-center gap-3 px-4 py-3 text-left
                                     hover:bg-base-200 transition-colors
@@ -95,7 +192,7 @@ function Sidebar({ selectedUser, onSelectUser }) {
                                 <Avatar user={user} isOnline={isOnline} />
                                 <div className="min-w-0">
                                     <p className="font-medium text-sm truncate">{user.name}</p>
-                                    <p className={`text-xs truncate ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
                                         {isOnline ? "Online" : "Offline"}
                                     </p>
                                 </div>
@@ -111,8 +208,8 @@ function Sidebar({ selectedUser, onSelectUser }) {
 // ── Chat window ──────────────────────────────────────────────────────
 function ChatWindow({ selectedUser }) {
     const {
-        messages, getMessages, sendMessage, isMessagesLoading,
-        subscribeToMessages, unsubscribeFromMessages,
+        messages, getMessages, sendMessage, deleteMessage,
+        isMessagesLoading, subscribeToMessages, unsubscribeFromMessages,
     } = useChatStore()
     const { authUser, onlineUsers } = useAuthStore()
 
@@ -120,8 +217,11 @@ function ChatWindow({ selectedUser }) {
     const [imagePreview, setImagePreview] = useState(null)
     const [imageBase64, setImageBase64] = useState(null)
     const [sending, setSending] = useState(false)
+    const [replyTo, setReplyTo] = useState(null)
+    const [contextMenu, setContextMenu] = useState({ visible: false })
+
     const bottomRef = useRef(null)
-    const fileRef = useRef(null)
+    const fileRef   = useRef(null)
 
     useEffect(() => {
         if (selectedUser?._id) {
@@ -134,6 +234,34 @@ function ChatWindow({ selectedUser }) {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])
+
+    const closeMenu = useCallback(() => setContextMenu({ visible: false }), [])
+
+    const handleContextMenu = (e, msg, isMine) => {
+        e.preventDefault()
+        const W = 210, H = 320
+        const x = Math.min(e.clientX, window.innerWidth  - W - 8)
+        const y = Math.min(e.clientY, window.innerHeight - H - 8)
+        setContextMenu({ visible: true, x, y, message: msg, isMine })
+    }
+
+    const handleReply = () => {
+        setReplyTo(contextMenu.message)
+        closeMenu()
+    }
+
+    const handleCopy = () => {
+        if (contextMenu.message?.message) {
+            navigator.clipboard.writeText(contextMenu.message.message)
+            toast.success("Copied!")
+        }
+        closeMenu()
+    }
+
+    const handleDelete = async () => {
+        await deleteMessage(contextMenu.message._id)
+        closeMenu()
+    }
 
     const handleImage = (e) => {
         const file = e.target.files[0]
@@ -149,10 +277,19 @@ function ChatWindow({ selectedUser }) {
     const handleSend = async () => {
         if (!text.trim() && !imageBase64) return
         setSending(true)
-        await sendMessage({ message: text.trim(), image: imageBase64 || "" })
+        await sendMessage({
+            message: text.trim(),
+            image: imageBase64 || "",
+            replyTo: replyTo ? {
+                _id:        replyTo._id,
+                message:    replyTo.message,
+                senderName: replyTo.senderId === authUser._id ? authUser.name : selectedUser.name,
+            } : null,
+        })
         setText("")
         setImagePreview(null)
         setImageBase64(null)
+        setReplyTo(null)
         setSending(false)
     }
 
@@ -169,9 +306,7 @@ function ChatWindow({ selectedUser }) {
             </div>
             <div className="text-center">
                 <h3 className="font-bold text-lg">Select a conversation</h3>
-                <p className="text-base-content/40 text-sm mt-1">
-                    Choose someone from the sidebar to start chatting
-                </p>
+                <p className="text-base-content/40 text-sm mt-1">Choose someone from the sidebar to start chatting</p>
             </div>
         </div>
     )
@@ -201,8 +336,8 @@ function ChatWindow({ selectedUser }) {
                     </div>
                 ) : (
                     messages.map((msg, i) => {
-                        const isMine = msg.senderId === authUser?._id
-                        const prev = messages[i - 1]
+                        const isMine  = msg.senderId === authUser?._id
+                        const prev    = messages[i - 1]
                         const showTime = !prev || Math.abs(
                             new Date(msg.createdAt) - new Date(prev.createdAt)
                         ) > 3 * 60 * 1000
@@ -220,10 +355,18 @@ function ChatWindow({ selectedUser }) {
                                             <Avatar user={selectedUser} size="sm" isOnline={isOnline} />
                                         </div>
                                     )}
-                                    <div className={`
-                                        chat-bubble shadow-sm max-w-[70%] break-words
-                                        ${isMine ? "chat-bubble-primary" : ""}
-                                    `}>
+                                    <div
+                                        className={`
+                                            chat-bubble shadow-sm max-w-[70%] break-words cursor-pointer
+                                            select-none
+                                            ${isMine ? "chat-bubble-primary" : ""}
+                                        `}
+                                        onContextMenu={e => handleContextMenu(e, msg, isMine)}
+                                    >
+                                        {/* Reply preview */}
+                                        {msg.replyTo?.message && (
+                                            <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />
+                                        )}
                                         {msg.image && (
                                             <img
                                                 src={msg.image}
@@ -247,7 +390,26 @@ function ChatWindow({ selectedUser }) {
                 <div ref={bottomRef} />
             </div>
 
-            {/* Image preview strip */}
+            {/* Context menu */}
+            <ContextMenu
+                menu={contextMenu}
+                onClose={closeMenu}
+                onReply={handleReply}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+            />
+
+            {/* Reply bar */}
+            {replyTo && (
+                <ReplyBar
+                    replyTo={replyTo}
+                    authUser={authUser}
+                    selectedUser={selectedUser}
+                    onCancel={() => setReplyTo(null)}
+                />
+            )}
+
+            {/* Image preview */}
             {imagePreview && (
                 <div className="px-4 pb-2">
                     <div className="relative inline-block">
@@ -275,13 +437,7 @@ function ChatWindow({ selectedUser }) {
                 >
                     <Image className="w-4 h-4 text-base-content/50" />
                 </button>
-                <input
-                    type="file"
-                    ref={fileRef}
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImage}
-                />
+                <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
 
                 <textarea
                     rows={1}
@@ -307,10 +463,9 @@ function ChatWindow({ selectedUser }) {
     )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────
 export default function ChatPage() {
     const { setSelectedUser, selectedUser } = useChatStore()
-
     return (
         <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-base-200">
             <Sidebar selectedUser={selectedUser} onSelectUser={setSelectedUser} />

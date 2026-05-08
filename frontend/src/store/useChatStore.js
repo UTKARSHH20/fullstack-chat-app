@@ -10,7 +10,6 @@ const useChatStore = create((set, get) => ({
     isUsersLoading:     false,
     isMessagesLoading:  false,
 
-    // ── Fetch sidebar users ──────────────────────────────────────
     getUsers: async () => {
         set({ isUsersLoading: true });
         try {
@@ -23,7 +22,6 @@ const useChatStore = create((set, get) => ({
         }
     },
 
-    // ── Fetch conversation ───────────────────────────────────────
     getMessages: async (userId) => {
         set({ isMessagesLoading: true });
         try {
@@ -36,45 +34,53 @@ const useChatStore = create((set, get) => ({
         }
     },
 
-    // ── Send a message ───────────────────────────────────────────
     sendMessage: async (messageData) => {
         const { selectedUser, messages } = get();
         if (!selectedUser) return;
         try {
-            const res = await axiosInstance.post(
-                `/messages/send/${selectedUser._id}`,
-                messageData
-            );
+            const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
             set({ messages: [...messages, res.data] });
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to send message");
         }
     },
 
-    // ── Socket: listen for incoming messages ─────────────────────
+    deleteMessage: async (messageId) => {
+        try {
+            await axiosInstance.delete(`/messages/${messageId}`);
+            set({ messages: get().messages.filter(m => m._id !== messageId) });
+            toast.success("Message deleted");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to delete message");
+        }
+    },
+
     subscribeToMessages: () => {
         const socket = getSocket();
         if (!socket) return;
-
         socket.on("newMessage", (message) => {
             const { selectedUser, messages } = get();
-            // Only add if it's from the currently open chat
             if (selectedUser && message.senderId === selectedUser._id) {
                 set({ messages: [...messages, message] });
             }
+        });
+        socket.on("deleteMessage", (messageId) => {
+            set({ messages: get().messages.filter(m => m._id !== messageId) });
         });
     },
 
     unsubscribeFromMessages: () => {
         const socket = getSocket();
-        if (socket) socket.off("newMessage");
+        if (socket) {
+            socket.off("newMessage");
+            socket.off("deleteMessage");
+        }
     },
 
-    // ── Select user (clears messages only if switching to a different user) ──
     setSelectedUser: (user) => {
-        const current = get().selectedUser
-        if (current?._id === user?._id) return   // already selected — do nothing
-        set({ selectedUser: user, messages: [] })
+        const current = get().selectedUser;
+        if (current?._id === user?._id) return;
+        set({ selectedUser: user, messages: [] });
     },
 }));
 

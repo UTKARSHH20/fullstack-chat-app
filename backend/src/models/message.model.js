@@ -6,6 +6,11 @@ const messageSchema = new mongoose.Schema(
         receiverId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         message:    { type: String, default: "" },
         image:      { type: String, default: "" },
+        replyTo: {
+            _id:        { type: mongoose.Schema.Types.ObjectId },
+            message:    { type: String, default: "" },
+            senderName: { type: String, default: "" },
+        },
     },
     { timestamps: true }
 );
