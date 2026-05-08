@@ -69,9 +69,20 @@ const useChatStore = create((set, get) => ({
         const socket = getSocket();
         if (!socket) return;
         socket.on("newMessage", (message) => {
-            const { selectedUser, messages } = get();
+            const { selectedUser, messages, users } = get();
             if (selectedUser && message.senderId === selectedUser._id) {
                 set({ messages: [...messages, message] });
+            }
+
+            if (document.visibilityState !== "visible" && Notification.permission === "granted") {
+                const sender = users.find(u => u._id === message.senderId);
+                const senderName = sender?.name || "Someone";
+                const body = message.message || (message.audio ? "🎤 Voice message" : "📷 Image");
+                const n = new Notification(`New message from ${senderName}`, {
+                    body,
+                    icon: "/favicon.png",
+                });
+                n.onclick = () => window.focus();
             }
         });
         socket.on("deleteMessage", (messageId) => {

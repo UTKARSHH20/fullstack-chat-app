@@ -3,17 +3,13 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketId } from "../lib/socket.js";
 
-// GET /api/messages/users — only users you've chatted with
 export const getUsers = async (req, res) => {
     try {
         const userId = req.userId;
-
-        // Find all messages involving current user
         const msgs = await Message.find({
             $or: [{ senderId: userId }, { receiverId: userId }]
         }).select("senderId receiverId");
 
-        // Collect unique partner IDs
         const partnerIds = new Set();
         msgs.forEach(m => {
             const s = m.senderId.toString();
@@ -23,7 +19,6 @@ export const getUsers = async (req, res) => {
         });
 
         if (partnerIds.size === 0) return res.status(200).json([]);
-
         const users = await User.find({ _id: { $in: [...partnerIds] } }).select("-password");
         res.status(200).json(users);
     } catch (error) {
@@ -32,17 +27,14 @@ export const getUsers = async (req, res) => {
     }
 };
 
-// GET /api/messages/search?q=name — search ALL users to start a new chat
 export const searchUsers = async (req, res) => {
     try {
         const { q = "" } = req.query;
         if (!q.trim()) return res.status(200).json([]);
-
         const users = await User.find({
             _id: { $ne: req.userId },
             name: { $regex: q.trim(), $options: "i" },
         }).select("-password").limit(10);
-
         res.status(200).json(users);
     } catch (error) {
         console.log(error);
@@ -50,7 +42,6 @@ export const searchUsers = async (req, res) => {
     }
 };
 
-// GET /api/messages/:id — conversation history
 export const getMessages = async (req, res) => {
     try {
         const { id: receiverId } = req.params;
@@ -68,12 +59,11 @@ export const getMessages = async (req, res) => {
     }
 };
 
-// POST /api/messages/send/:id
 export const sendMessage = async (req, res) => {
     try {
         const { id: receiverId } = req.params;
         const senderId = req.userId;
-        const { message, image, replyTo } = req.body;
+        const { message, image, audio, replyTo } = req.body;
 
         let imageUrl = "";
         if (image) {
@@ -81,11 +71,18 @@ export const sendMessage = async (req, res) => {
             imageUrl = result.secure_url;
         }
 
+        let audioUrl = "";
+        if (audio) {
+            const result = await cloudinary.uploader.upload(audio, { resource_type: "auto" });
+            audioUrl = result.secure_url;
+        }
+
         const newMessage = await Message.create({
             senderId,
             receiverId,
             message: message || "",
             image: imageUrl,
+            audio: audioUrl,
             replyTo: replyTo || undefined,
         });
 
@@ -101,7 +98,6 @@ export const sendMessage = async (req, res) => {
     }
 };
 
-// DELETE /api/messages/:id
 export const deleteMessage = async (req, res) => {
     try {
         const { id } = req.params;

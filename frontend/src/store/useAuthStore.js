@@ -3,6 +3,12 @@ import axiosInstance from "../../lib/axios";
 import toast from "react-hot-toast";
 import { connectSocket, disconnectSocket } from "../../lib/socket";
 
+const requestNotificationPermission = () => {
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+};
+
 const useAuthStore = create((set) => ({
     authUser: null,
     isLoading: false,
@@ -15,6 +21,7 @@ const useAuthStore = create((set) => ({
             const res = await axiosInstance.post("/auth/signup", formData);
             set({ authUser: res.data });
             connectSocket(res.data._id);
+            requestNotificationPermission();
             toast.success("Account created successfully!");
         } catch (error) {
             toast.error(error.response?.data?.message || "Signup failed");
@@ -30,6 +37,7 @@ const useAuthStore = create((set) => ({
             const res = await axiosInstance.post("/auth/login", formData);
             set({ authUser: res.data });
             connectSocket(res.data._id);
+            requestNotificationPermission();
             toast.success("Logged in successfully!");
         } catch (error) {
             toast.error(error.response?.data?.message || "Login failed");
@@ -56,6 +64,7 @@ const useAuthStore = create((set) => ({
             const res = await axiosInstance.get("/auth/check");
             set({ authUser: res.data });
             connectSocket(res.data._id);
+            requestNotificationPermission();
         } catch {
             set({ authUser: null });
         } finally {

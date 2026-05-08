@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
-    ArrowLeft, PenSquare, Smile,
+    ArrowLeft, PenSquare, Smile, Mic, Square,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
@@ -11,6 +11,8 @@ import { getSocket } from "../lib/socket"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
 
@@ -365,10 +367,16 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [replyTo, setReplyTo] = useState(null)
     const [contextMenu, setContextMenu] = useState({ visible: false })
     const [showEmoji, setShowEmoji] = useState(false)
+    const [isRecording, setIsRecording] = useState(false)
+    const [recordingTime, setRecordingTime] = useState(0)
+    const [audioBase64, setAudioBase64] = useState(null)
 
     const bottomRef = useRef(null)
     const fileRef   = useRef(null)
     const textareaRef = useRef(null)
+    const mediaRecorderRef = useRef(null)
+    const audioChunksRef = useRef([])
+    const timerRef = useRef(null)
 
     useEffect(() => {
         if (selectedUser?._id) {
@@ -410,20 +418,67 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         reader.readAsDataURL(file)
     }
 
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const mediaRecorder = new MediaRecorder(stream)
+            mediaRecorderRef.current = mediaRecorder
+            audioChunksRef.current = []
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data)
+            }
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" })
+                const reader = new FileReader()
+                reader.onloadend = () => setAudioBase64(reader.result)
+                reader.readAsDataURL(audioBlob)
+                stream.getTracks().forEach(track => track.stop())
+            }
+
+            mediaRecorder.start()
+            setIsRecording(true)
+            setRecordingTime(0)
+            timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000)
+        } catch (error) {
+            toast.error("Microphone access denied")
+        }
+    }
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop()
+            setIsRecording(false)
+            clearInterval(timerRef.current)
+        }
+    }
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop()
+        }
+        setIsRecording(false)
+        clearInterval(timerRef.current)
+        setAudioBase64(null)
+        audioChunksRef.current = []
+    }
+
     const handleSend = async () => {
-        if (!text.trim() && !imageBase64) return
+        if (!text.trim() && !imageBase64 && !audioBase64) return
         setSending(true)
         setShowEmoji(false)
         await sendMessage({
             message: text.trim(),
             image: imageBase64 || "",
+            audio: audioBase64 || "",
             replyTo: replyTo ? {
                 _id: replyTo._id,
                 message: replyTo.message,
                 senderName: replyTo.senderId === authUser._id ? authUser.name : selectedUser.name,
             } : null,
         })
-        setText(""); setImagePreview(null); setImageBase64(null); setReplyTo(null)
+        setText(""); setImagePreview(null); setImageBase64(null); setAudioBase64(null); setReplyTo(null)
         setSending(false)
     }
 
@@ -505,6 +560,9 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                                 onClick={() => window.open(msg.image, "_blank")}
                                             />
                                         )}
+                                        {msg.audio && (
+                                            <audio src={msg.audio} controls className="max-w-full h-10 mb-1" />
+                                        )}
                                         {msg.message && <p className="text-sm">{msg.message}</p>}
                                     </div>
                                     {isMine && (
@@ -558,31 +616,67 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                         onClose={() => setShowEmoji(false)}
                     />
                 )}
-                <button onClick={() => fileRef.current?.click()}
-                    className="btn btn-ghost btn-sm btn-square shrink-0" title="Attach image">
-                    <Image className="w-4 h-4 text-base-content/50" />
-                </button>
-                <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
-                <button
-                    onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
-                    className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
-                    title="Emoji"
-                >
-                    <Smile className="w-4 h-4" />
-                </button>
-                <textarea
-                    ref={textareaRef}
-                    rows={1}
-                    placeholder="Type a message…"
-                    className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed"
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                />
-                <button onClick={handleSend} disabled={(!text.trim() && !imageBase64) || sending}
-                    className="btn btn-primary btn-sm btn-square shrink-0">
-                    {sending ? <span className="loading loading-spinner loading-xs" /> : <Send className="w-4 h-4" />}
-                </button>
+
+                {isRecording ? (
+                    <div className="flex-1 flex items-center justify-between bg-error/10 text-error rounded-xl px-4 py-2 h-10">
+                        <div className="flex items-center gap-2 animate-pulse">
+                            <Mic className="w-4 h-4" />
+                            <span className="text-sm font-medium">{formatRecordingTime(recordingTime)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={cancelRecording} className="btn btn-ghost btn-xs btn-circle hover:bg-error/20">
+                                <X className="w-4 h-4" />
+                            </button>
+                            <button onClick={stopRecording} className="btn btn-error btn-xs btn-circle text-white">
+                                <Square className="w-3 h-3 fill-current" />
+                            </button>
+                        </div>
+                    </div>
+                ) : audioBase64 ? (
+                    <div className="flex-1 flex items-center gap-2 bg-base-200 rounded-xl px-2 py-1 h-10">
+                        <button onClick={() => setAudioBase64(null)} className="btn btn-ghost btn-sm btn-circle text-error shrink-0">
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                        <audio src={audioBase64} controls className="h-8 flex-1 min-w-0" />
+                    </div>
+                ) : (
+                    <>
+                        <button onClick={() => fileRef.current?.click()}
+                            className="btn btn-ghost btn-sm btn-square shrink-0" title="Attach image">
+                            <Image className="w-4 h-4 text-base-content/50" />
+                        </button>
+                        <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
+                            className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
+                            title="Emoji"
+                        >
+                            <Smile className="w-4 h-4" />
+                        </button>
+                        <textarea
+                            ref={textareaRef}
+                            rows={1}
+                            placeholder="Type a message…"
+                            className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed"
+                            value={text}
+                            onChange={e => setText(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                        />
+                    </>
+                )}
+
+                {!isRecording && (
+                    text.trim() || imageBase64 || audioBase64 ? (
+                        <button onClick={handleSend} disabled={sending}
+                            className="btn btn-primary btn-sm btn-square shrink-0">
+                            {sending ? <span className="loading loading-spinner loading-xs" /> : <Send className="w-4 h-4" />}
+                        </button>
+                    ) : (
+                        <button onClick={startRecording} className="btn btn-primary btn-sm btn-square shrink-0 rounded-full">
+                            <Mic className="w-4 h-4" />
+                        </button>
+                    )
+                )}
             </div>
         </div>
     )
