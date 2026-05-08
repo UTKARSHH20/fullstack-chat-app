@@ -190,7 +190,7 @@ function ChatWindow({ selectedUser }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="loading loading-spinner loading-md text-primary" />
@@ -214,14 +214,14 @@ function ChatWindow({ selectedUser }) {
                                         {formatTime(msg.createdAt)}
                                     </p>
                                 )}
-                                <div className={`chat ${isMine ? "chat-end" : "chat-start"}`}>
+                                <div className={`chat w-full ${isMine ? "chat-end" : "chat-start"}`}>
                                     {!isMine && (
                                         <div className="chat-image">
                                             <Avatar user={selectedUser} size="sm" isOnline={isOnline} />
                                         </div>
                                     )}
                                     <div className={`
-                                        chat-bubble shadow-sm max-w-xs lg:max-w-md break-words
+                                        chat-bubble shadow-sm max-w-[70%] break-words
                                         ${isMine ? "chat-bubble-primary" : ""}
                                     `}>
                                         {msg.image && (
