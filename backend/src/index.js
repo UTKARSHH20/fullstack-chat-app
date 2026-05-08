@@ -4,27 +4,37 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./lib/db.js";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import { app, server } from "./lib/socket.js";
 
 const PORT = process.env.PORT || 5001;
-const __dirname = path.resolve();
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ── CORS ─────────────────────────────────────────────────────────
 app.use(cors({
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    origin: process.env.NODE_ENV === "production"
+        ? true   // allow the same origin (Render serves frontend + backend together)
+        : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     credentials: true,
 }));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-app.use("/api/auth", authRoutes);
+// ── API routes ───────────────────────────────────────────────────
+app.use("/api/auth",     authRoutes);
 app.use("/api/messages", messageRoutes);
+
+// ── Serve React frontend in production ───────────────────────────
 if (process.env.NODE_ENV === "production") {
-    app.use(express.static(path.join(__dirname, "/frontend/dist")));
+    const frontendDist = path.join(__dirname, "../../frontend/dist");
+    app.use(express.static(frontendDist));
     app.get("*", (req, res) => {
-        res.sendFile(path.resolve(__dirname, "frontend", "dist", "index.html"));
+        res.sendFile(path.join(frontendDist, "index.html"));
     });
 }
 
