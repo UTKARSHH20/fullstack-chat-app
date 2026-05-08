@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
-    ArrowLeft, PenSquare,
+    ArrowLeft, PenSquare, Smile,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
@@ -14,6 +14,83 @@ const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+
+const EMOJI_CATEGORIES = [
+    {
+        label: "😊", name: "Smileys",
+        emojis: ["😀","😁","😂","🤣","😃","😄","😅","😆","😇","😈","😉","😊","😋","😌","😍","😎","😏","😐","😑","😒","😓","😔","😕","😖","😗","😘","😙","😚","😛","😜","😝","😞","😟","😠","😡","😢","😣","😤","😥","😦","😧","😨","😩","😪","😫","😬","😭","😮","😯","😰","😱","😲","😳","😴","😵","😶","😷","🙂","🙃","🙄","🤐","🤑","🤒","🤓","🤔","🤕","🤗","🤠","🤡","🥰","🥳","🥺","🤩"],
+    },
+    {
+        label: "👋", name: "Gestures",
+        emojis: ["👋","🤚","🖐","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🧠","🫀","🦷","👀","👁","👅","👄"],
+    },
+    {
+        label: "❤️", name: "Hearts",
+        emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉","☸️","✡️","🔯","🕎","☯️","☦️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","🉑","☢️","☣️","📴","📳"],
+    },
+    {
+        label: "⚽", name: "Activities",
+        emojis: ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🤿","🎯","🎱","🎮","🎰","🎲","🧩","🪀","🪁","🎭","🎨","🖼","🎪","🎤","🎧","🎼","🎹","🥁","🎷","🎺","🎸","🪕","🎻","🎬","🏆","🥇","🥈","🥉","🏅","🎖"],
+    },
+    {
+        label: "🍕", name: "Food",
+        emojis: ["🍕","🍔","🌮","🌯","🥙","🧆","🥚","🍳","🥘","🍲","🫕","🥣","🥗","🍿","🧈","🧂","🥫","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍠","🍢","🍣","🍤","🍥","🥮","🍡","🥟","🦪","🍦","🍧","🍨","🍩","🍪","🎂","🍰","🧁","🥧","🍫","🍬","🍭","🍮","🍯","🍼","🥤","🧋"],
+    },
+    {
+        label: "🌸", name: "Nature",
+        emojis: ["🌸","🌼","🌻","🌺","🌹","🥀","🌷","🌱","🌿","☘️","🍀","🎋","🎍","🍃","🍂","🍁","🍄","🐚","🪸","🪨","🌾","💐","🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🐤","🦅","🦆","🦉","🦇","🐝","🦋"],
+    },
+]
+
+// ── Emoji Picker ─────────────────────────────────────────────────
+function EmojiPicker({ onSelect, onClose }) {
+    const ref = useRef(null)
+    const [tab, setTab] = useState(0)
+
+    useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+        const t = setTimeout(() => window.addEventListener("click", handler), 10)
+        return () => { clearTimeout(t); window.removeEventListener("click", handler) }
+    }, [onClose])
+
+    return (
+        <div
+            ref={ref}
+            className="absolute bottom-16 left-2 z-50 bg-base-200 border border-base-300 rounded-2xl shadow-2xl w-72 flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+        >
+            {/* Category tabs */}
+            <div className="flex border-b border-base-300">
+                {EMOJI_CATEGORIES.map((cat, i) => (
+                    <button
+                        key={cat.name}
+                        onClick={() => setTab(i)}
+                        title={cat.name}
+                        className={`flex-1 py-2 text-lg hover:bg-base-300 transition-colors ${
+                            tab === i ? "border-b-2 border-primary bg-base-300/50" : ""
+                        }`}
+                    >
+                        {cat.label}
+                    </button>
+                ))}
+            </div>
+            {/* Emoji grid */}
+            <div className="overflow-y-auto h-48 p-2">
+                <div className="grid grid-cols-8 gap-0.5">
+                    {EMOJI_CATEGORIES[tab].emojis.map(emoji => (
+                        <button
+                            key={emoji}
+                            onClick={() => onSelect(emoji)}
+                            className="text-xl p-1 rounded-lg hover:bg-base-300 active:scale-90 transition-all"
+                        >
+                            {emoji}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+}
 
 // ── Avatar ────────────────────────────────────────────────────────
 const Avatar = ({ user, size = "md", isOnline = false }) => {
@@ -298,9 +375,11 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [sending, setSending] = useState(false)
     const [replyTo, setReplyTo] = useState(null)
     const [contextMenu, setContextMenu] = useState({ visible: false })
+    const [showEmoji, setShowEmoji] = useState(false)
 
     const bottomRef = useRef(null)
     const fileRef   = useRef(null)
+    const textareaRef = useRef(null)
 
     useEffect(() => {
         if (selectedUser?._id) {
@@ -345,6 +424,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const handleSend = async () => {
         if (!text.trim() && !imageBase64) return
         setSending(true)
+        setShowEmoji(false)
         await sendMessage({
             message: text.trim(),
             image: imageBase64 || "",
@@ -477,13 +557,42 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             )}
 
             {/* Input bar */}
-            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2">
+            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative">
+                {showEmoji && (
+                    <EmojiPicker
+                        onSelect={(emoji) => {
+                            const el = textareaRef.current
+                            if (el) {
+                                const start = el.selectionStart
+                                const end   = el.selectionEnd
+                                setText(prev => prev.slice(0, start) + emoji + prev.slice(end))
+                                // restore cursor after emoji
+                                setTimeout(() => {
+                                    el.focus()
+                                    el.setSelectionRange(start + emoji.length, start + emoji.length)
+                                }, 0)
+                            } else {
+                                setText(prev => prev + emoji)
+                            }
+                        }}
+                        onClose={() => setShowEmoji(false)}
+                    />
+                )}
                 <button onClick={() => fileRef.current?.click()}
                     className="btn btn-ghost btn-sm btn-square shrink-0" title="Attach image">
                     <Image className="w-4 h-4 text-base-content/50" />
                 </button>
                 <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
+                {/* Emoji button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
+                    className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
+                    title="Emoji"
+                >
+                    <Smile className="w-4 h-4" />
+                </button>
                 <textarea
+                    ref={textareaRef}
                     rows={1}
                     placeholder="Type a message…"
                     className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed"
