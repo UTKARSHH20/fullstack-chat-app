@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketId } from "../lib/socket.js";
+import webpush from "../lib/webpush.js";
 
 export const getUsers = async (req, res) => {
     try {
@@ -89,6 +90,22 @@ export const sendMessage = async (req, res) => {
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", newMessage);
+        } else {
+            // User is offline, send web push notification
+            const receiverUser = await User.findById(receiverId);
+            const senderUser = await User.findById(senderId);
+            if (receiverUser?.pushSubscription) {
+                const payload = JSON.stringify({
+                    title: `New message from ${senderUser.name}`,
+                    body: message || (audio ? "🎤 Voice message" : "📷 Image"),
+                    icon: "/favicon.png",
+                });
+                try {
+                    await webpush.sendNotification(receiverUser.pushSubscription, payload);
+                } catch (err) {
+                    console.log("Web push error:", err);
+                }
+            }
         }
 
         res.status(201).json(newMessage);

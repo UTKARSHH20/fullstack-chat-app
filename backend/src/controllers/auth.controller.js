@@ -116,3 +116,14 @@ export const checkAuth = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const subscribeToPush = async (req, res) => {
+    try {
+        const { subscription } = req.body;
+        await User.findByIdAndUpdate(req.userId, { pushSubscription: subscription });
+        res.status(200).json({ message: "Push subscription saved" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
