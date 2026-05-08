@@ -15,9 +15,7 @@
 
 > **Live Demo:** [https://fullstack-chat-app-XXXX.onrender.com](https://render.com)
 
-| Chat View | Context Menu | Mobile View |
-|-----------|-------------|-------------|
-| ![chat]() | ![menu]() | ![mobile]() |
+![Chat Interface Demo](./frontend/public/preview.png)
 
 ---
 
@@ -247,9 +245,20 @@ Authentication is handled with **JWT stored in HTTP-only cookies**, making it im
 
 ---
 
-## 🤝 Contributing
+## 🤝 Contributors
 
-Contributions are welcome. To get started:
+This project was built and tested with passion. Special thanks to the core contributors:
+
+<a href="https://github.com/UTKARSHH20/fullstack-chat-app/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=UTKARSHH20/fullstack-chat-app" />
+</a>
+
+* **Utkarsh** (Lead Developer)
+* **Harsh**
+* **Pratikshya**
+* **Aryan**
+
+Contributions are welcome! To get started:
 
 ```bash
 # Fork the repo, then:
