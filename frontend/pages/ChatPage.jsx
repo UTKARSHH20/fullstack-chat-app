@@ -269,12 +269,29 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
     const [search, setSearch] = useState("")
     const [showNewChat, setShowNewChat] = useState(false)
 
-    useEffect(() => { getUsers() }, [getUsers])
+    const previousOnlineRef = useRef(onlineUsers)
+
+    useEffect(() => {
+        getUsers()
+    }, [getUsers])
 
     useEffect(() => {
         const socket = getSocket()
         if (!socket) return
-        socket.on("getOnlineUsers", (ids) => useAuthStore.getState().setOnlineUsers(ids))
+        socket.on("getOnlineUsers", (ids) => {
+            const currentOnline = useAuthStore.getState().onlineUsers;
+            const wentOffline = currentOnline.filter(id => !ids.includes(id));
+            if (wentOffline.length > 0) {
+                const now = new Date().toISOString();
+                useChatStore.setState(state => ({
+                    users: state.users.map(u => wentOffline.includes(u._id) ? { ...u, lastSeen: now } : u),
+                    selectedUser: state.selectedUser && wentOffline.includes(state.selectedUser._id)
+                        ? { ...state.selectedUser, lastSeen: now }
+                        : state.selectedUser
+                }));
+            }
+            useAuthStore.getState().setOnlineUsers(ids)
+        })
         return () => socket.off("getOnlineUsers")
     }, [])
 
@@ -348,9 +365,9 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                                 <div className="min-w-0">
                                     <p className="font-medium text-sm truncate">{user.name}</p>
                                     {typingUsers.includes(user._id) ? (
-                                        <p className="text-xs text-primary font-medium animate-pulse">typing...</p>
+                                        <p className="text-xs text-success font-bold animate-pulse">typing...</p>
                                     ) : (
-                                        <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                        <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/70"}`}>
                                             {isOnline ? "Online" : "Offline"}
                                         </p>
                                     )}
@@ -552,9 +569,9 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <Avatar user={selectedUser} isOnline={isOnline} />
                 <div>
                     <p className="font-semibold text-sm">{selectedUser.name}</p>
-                    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                    <p className={`text-xs ${isOnline ? "text-success font-medium" : "text-base-content/70"}`}>
                         {typingUsers.includes(selectedUser._id) ? (
-                            <span className="text-primary font-medium animate-pulse">typing...</span>
+                            <span className="text-success font-bold animate-pulse inline-block">typing...</span>
                         ) : isOnline ? (
                             "Online"
                         ) : (
