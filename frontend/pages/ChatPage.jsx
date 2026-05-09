@@ -3,6 +3,7 @@ import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
     ArrowLeft, PenSquare, Smile, Mic, Square,
+    Check, CheckCheck,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
@@ -13,6 +14,19 @@ const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
+
+const formatLastSeen = (dateString) => {
+    if (!dateString) return "Offline";
+    const date = new Date(dateString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return `Last seen today at ${time}`;
+    const nowCopy = new Date();
+    const isYesterday = new Date(nowCopy.setDate(nowCopy.getDate() - 1)).toDateString() === date.toDateString();
+    if (isYesterday) return `Last seen yesterday at ${time}`;
+    return `Last seen ${date.toLocaleDateString()} at ${time}`;
+};
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
 
@@ -250,7 +264,7 @@ function NewChatModal({ onSelectUser, onClose }) {
 }
 
 function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
-    const { users, getUsers, isUsersLoading } = useChatStore()
+    const { users, getUsers, isUsersLoading, typingUsers } = useChatStore()
     const { onlineUsers } = useAuthStore()
     const [search, setSearch] = useState("")
     const [showNewChat, setShowNewChat] = useState(false)
@@ -333,9 +347,13 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                                 <Avatar user={user} isOnline={isOnline} />
                                 <div className="min-w-0">
                                     <p className="font-medium text-sm truncate">{user.name}</p>
-                                    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
-                                        {isOnline ? "Online" : "Offline"}
-                                    </p>
+                                    {typingUsers.includes(user._id) ? (
+                                        <p className="text-xs text-primary font-medium animate-pulse">typing...</p>
+                                    ) : (
+                                        <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                            {isOnline ? "Online" : "Offline"}
+                                        </p>
+                                    )}
                                 </div>
                             </button>
                         )
@@ -357,6 +375,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const {
         messages, getMessages, sendMessage, deleteMessage,
         isMessagesLoading, subscribeToMessages, unsubscribeFromMessages,
+        typingUsers, markMessagesAsSeen
     } = useChatStore()
     const { authUser, onlineUsers } = useAuthStore()
 
@@ -385,6 +404,13 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         }
         return () => unsubscribeFromMessages()
     }, [selectedUser, getMessages, subscribeToMessages, unsubscribeFromMessages])
+
+    useEffect(() => {
+        if (selectedUser?._id && messages.length > 0) {
+            const hasUnseen = messages.some(m => m.senderId === selectedUser._id && m.status !== "seen");
+            if (hasUnseen) markMessagesAsSeen(selectedUser._id);
+        }
+    }, [selectedUser, messages, markMessagesAsSeen]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -482,6 +508,20 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         setSending(false)
     }
 
+    const typingTimeoutRef = useRef(null)
+
+    const handleTyping = (e) => {
+        setText(e.target.value)
+        const socket = getSocket()
+        if (socket && selectedUser) {
+            socket.emit("typing", { receiverId: selectedUser._id })
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+            typingTimeoutRef.current = setTimeout(() => {
+                socket.emit("stopTyping", { receiverId: selectedUser._id })
+            }, 2000)
+        }
+    }
+
     const handleKeyDown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() }
     }
@@ -513,7 +553,13 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <div>
                     <p className="font-semibold text-sm">{selectedUser.name}</p>
                     <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
-                        {isOnline ? "Online" : "Offline"}
+                        {typingUsers.includes(selectedUser._id) ? (
+                            <span className="text-primary font-medium animate-pulse">typing...</span>
+                        ) : isOnline ? (
+                            "Online"
+                        ) : (
+                            formatLastSeen(selectedUser.lastSeen)
+                        )}
                     </p>
                 </div>
             </div>
@@ -564,6 +610,16 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                             <audio src={msg.audio} controls className="max-w-full h-10 mb-1" />
                                         )}
                                         {msg.message && <p className="text-sm">{msg.message}</p>}
+                                        <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMine ? "text-primary-content/70" : "text-base-content/50"}`}>
+                                            <span>{formatTime(msg.createdAt)}</span>
+                                            {isMine && (
+                                                msg.status === "seen" ? (
+                                                    <CheckCheck className="w-3.5 h-3.5 text-info" />
+                                                ) : (
+                                                    <Check className="w-3.5 h-3.5" />
+                                                )
+                                            )}
+                                        </div>
                                     </div>
                                     {isMine && (
                                         <div className="chat-image">
@@ -659,7 +715,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                             placeholder="Type a message…"
                             className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed"
                             value={text}
-                            onChange={e => setText(e.target.value)}
+                            onChange={handleTyping}
                             onKeyDown={handleKeyDown}
                         />
                     </>

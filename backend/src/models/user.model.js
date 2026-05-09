@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema({
     pushSubscription: {
         type: Object,
         default: null
+    },
+    lastSeen: {
+        type: Date,
+        default: Date.now
     }
 });
 

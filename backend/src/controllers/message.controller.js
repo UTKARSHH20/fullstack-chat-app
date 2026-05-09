@@ -91,7 +91,6 @@ export const sendMessage = async (req, res) => {
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", newMessage);
         } else {
-            // User is offline, send web push notification
             const receiverUser = await User.findById(receiverId);
             const senderUser = await User.findById(senderId);
             if (receiverUser?.pushSubscription) {
@@ -131,6 +130,27 @@ export const deleteMessage = async (req, res) => {
         if (receiverSocketId) io.to(receiverSocketId).emit("deleteMessage", id);
 
         res.status(200).json({ _id: id });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const markMessagesAsSeen = async (req, res) => {
+    try {
+        const { senderId } = req.body;
+        const receiverId = req.userId;
+
+        await Message.updateMany(
+            { senderId, receiverId, status: "sent" },
+            { $set: { status: "seen" } }
+        );
+
+        const senderSocketId = getReceiverSocketId(senderId);
+        if (senderSocketId) {
+            io.to(senderSocketId).emit("messagesSeen", { receiverId });
+        }
+        res.status(200).json({ message: "Messages marked as seen" });
     } catch (error) {
         console.log(error);
         res.status(500).json({ message: "Internal server error" });

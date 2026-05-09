@@ -7,6 +7,7 @@ const useChatStore = create((set, get) => ({
     users: [],
     selectedUser: null,
     messages: [],
+    typingUsers: [],
     isUsersLoading: false,
     isMessagesLoading: false,
 
@@ -65,6 +66,19 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    markMessagesAsSeen: async (senderId) => {
+        try {
+            await axiosInstance.put("/messages/mark-seen", { senderId });
+            set((state) => ({
+                messages: state.messages.map(msg => 
+                    msg.senderId === senderId ? { ...msg, status: "seen" } : msg
+                )
+            }));
+        } catch (error) {
+            console.log("Failed to mark messages as seen", error);
+        }
+    },
+
     subscribeToMessages: () => {
         const socket = getSocket();
         if (!socket) return;
@@ -88,6 +102,20 @@ const useChatStore = create((set, get) => ({
         socket.on("deleteMessage", (messageId) => {
             set({ messages: get().messages.filter(m => m._id !== messageId) });
         });
+        socket.on("userTyping", ({ senderId }) => {
+            set((state) => ({ typingUsers: [...new Set([...state.typingUsers, senderId])] }));
+        });
+        socket.on("userStoppedTyping", ({ senderId }) => {
+            set((state) => ({ typingUsers: state.typingUsers.filter(id => id !== senderId) }));
+        });
+        socket.on("messagesSeen", ({ receiverId }) => {
+            // receiverId is the person who saw our messages
+            set((state) => ({
+                messages: state.messages.map(msg => 
+                    msg.receiverId === receiverId ? { ...msg, status: "seen" } : msg
+                )
+            }));
+        });
     },
 
     unsubscribeFromMessages: () => {
@@ -95,6 +123,9 @@ const useChatStore = create((set, get) => ({
         if (socket) {
             socket.off("newMessage");
             socket.off("deleteMessage");
+            socket.off("userTyping");
+            socket.off("userStoppedTyping");
+            socket.off("messagesSeen");
         }
     },
 
