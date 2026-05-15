@@ -605,8 +605,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     )
 
     return (
-        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0`}>
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-base-200 shadow-sm">
+        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0 h-full overflow-hidden`}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-base-200 shadow-sm shrink-0 sticky top-0 z-10 bg-base-100">
                 <button
                     onClick={onBack}
                     className="md:hidden btn btn-ghost btn-sm btn-circle shrink-0"
@@ -723,7 +723,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             )}
 
-            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative">
+            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative shrink-0">
                 {showEmoji && (
                     <EmojiPicker
                         onSelect={(emoji) => {
@@ -817,7 +817,7 @@ export default function ChatPage() {
     const chatSelected = !!selectedUser
 
     return (
-        <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-base-200 relative">
+        <div className="h-[calc(100vh-64px)] h-[calc(100dvh-64px)] flex overflow-hidden bg-base-200 relative">
             <Sidebar
                 selectedUser={selectedUser}
                 onSelectUser={setSelectedUser}
