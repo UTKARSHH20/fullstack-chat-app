@@ -4,9 +4,16 @@ import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketId } from "../lib/socket.js";
 import webpush from "../lib/webpush.js";
 
+// ── Helpers ──────────────────────────────────────────────────────
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// ── GET /messages/users ──────────────────────────────────────────
+// Returns conversation partners with lastMessage + unreadCount, sorted by recency
 export const getUsers = async (req, res) => {
     try {
         const userId = req.userId;
+
+        // 1. Find all unique conversation partners
         const msgs = await Message.find({
             $or: [{ senderId: userId }, { receiverId: userId }]
         }).select("senderId receiverId");
@@ -20,21 +27,73 @@ export const getUsers = async (req, res) => {
         });
 
         if (partnerIds.size === 0) return res.status(200).json([]);
+
+        // 2. Get user documents
         const users = await User.find({ _id: { $in: [...partnerIds] } }).select("-password");
-        res.status(200).json(users);
+
+        // 3. For each partner, get last message + unread count
+        const enriched = await Promise.all(
+            users.map(async (user) => {
+                const partnerId = user._id.toString();
+
+                const lastMessage = await Message.findOne({
+                    $or: [
+                        { senderId: userId, receiverId: partnerId },
+                        { senderId: partnerId, receiverId: userId },
+                    ],
+                })
+                    .sort({ createdAt: -1 })
+                    .lean();
+
+                const unreadCount = await Message.countDocuments({
+                    senderId: partnerId,
+                    receiverId: userId,
+                    status: "sent",
+                });
+
+                return {
+                    ...user.toObject(),
+                    lastMessage: lastMessage
+                        ? {
+                              _id: lastMessage._id,
+                              message: lastMessage.message,
+                              image: !!lastMessage.image,
+                              audio: !!lastMessage.audio,
+                              senderId: lastMessage.senderId,
+                              createdAt: lastMessage.createdAt,
+                          }
+                        : null,
+                    unreadCount,
+                };
+            })
+        );
+
+        // 4. Sort by most recent message
+        enriched.sort((a, b) => {
+            const aTime = a.lastMessage?.createdAt || 0;
+            const bTime = b.lastMessage?.createdAt || 0;
+            return new Date(bTime) - new Date(aTime);
+        });
+
+        res.status(200).json(enriched);
     } catch (error) {
         console.log(error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
 
+// ── GET /messages/search?q= ──────────────────────────────────────
 export const searchUsers = async (req, res) => {
     try {
         const { q = "" } = req.query;
         if (!q.trim()) return res.status(200).json([]);
+
+        // Escape special regex characters to prevent ReDoS
+        const safeQuery = escapeRegex(q.trim());
+
         const users = await User.find({
             _id: { $ne: req.userId },
-            name: { $regex: q.trim(), $options: "i" },
+            name: { $regex: safeQuery, $options: "i" },
         }).select("-password").limit(10);
         res.status(200).json(users);
     } catch (error) {
@@ -43,23 +102,46 @@ export const searchUsers = async (req, res) => {
     }
 };
 
+// ── GET /messages/:id?before=&limit= ────────────────────────────
+// Cursor-based pagination: returns `limit` messages older than `before`
 export const getMessages = async (req, res) => {
     try {
         const { id: receiverId } = req.params;
         const senderId = req.userId;
-        const messages = await Message.find({
+        const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+        const beforeId = req.query.before;
+
+        const filter = {
             $or: [
                 { senderId, receiverId },
                 { senderId: receiverId, receiverId: senderId },
             ],
-        }).sort({ createdAt: 1 });
-        res.status(200).json(messages);
+        };
+
+        // If a cursor is provided, fetch messages older than it
+        if (beforeId) {
+            filter._id = { $lt: beforeId };
+        }
+
+        const messages = await Message.find(filter)
+            .sort({ createdAt: -1 })
+            .limit(limit + 1) // fetch one extra to know if there's more
+            .lean();
+
+        const hasMore = messages.length > limit;
+        if (hasMore) messages.pop(); // remove the extra
+
+        // Reverse so oldest-first for the frontend
+        messages.reverse();
+
+        res.status(200).json({ messages, hasMore });
     } catch (error) {
         console.log(error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
 
+// ── POST /messages/send/:id ──────────────────────────────────────
 export const sendMessage = async (req, res) => {
     try {
         const { id: receiverId } = req.params;
@@ -114,6 +196,7 @@ export const sendMessage = async (req, res) => {
     }
 };
 
+// ── DELETE /messages/:id ─────────────────────────────────────────
 export const deleteMessage = async (req, res) => {
     try {
         const { id } = req.params;
@@ -136,19 +219,23 @@ export const deleteMessage = async (req, res) => {
     }
 };
 
+// ── PUT /messages/mark-seen ──────────────────────────────────────
 export const markMessagesAsSeen = async (req, res) => {
     try {
         const { senderId } = req.body;
         const receiverId = req.userId;
 
-        await Message.updateMany(
+        const result = await Message.updateMany(
             { senderId, receiverId, status: "sent" },
             { $set: { status: "seen" } }
         );
 
-        const senderSocketId = getReceiverSocketId(senderId);
-        if (senderSocketId) {
-            io.to(senderSocketId).emit("messagesSeen", { receiverId });
+        // Only emit socket event if messages were actually updated
+        if (result.modifiedCount > 0) {
+            const senderSocketId = getReceiverSocketId(senderId);
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("messagesSeen", { receiverId });
+            }
         }
         res.status(200).json({ message: "Messages marked as seen" });
     } catch (error) {

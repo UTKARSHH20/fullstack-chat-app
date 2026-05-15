@@ -17,5 +17,10 @@ const messageSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// Compound index for fast conversation lookups & pagination
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
+// Index for unread-count queries
+messageSchema.index({ receiverId: 1, status: 1 });
+
 const Message = mongoose.model("Message", messageSchema);
 export default Message;

@@ -3,7 +3,7 @@ import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
     ArrowLeft, PenSquare, Smile, Mic, Square,
-    Check, CheckCheck,
+    Check, CheckCheck, Loader2,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
@@ -348,6 +348,10 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                 ) : (
                     filtered.map(user => {
                         const isOnline = onlineUsers.includes(user._id)
+                        const lm = user.lastMessage
+                        const preview = lm
+                            ? (lm.message || (lm.audio ? "🎤 Voice" : lm.image ? "📷 Image" : ""))
+                            : ""
                         return (
                             <button
                                 key={user._id}
@@ -362,20 +366,36 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
                                 `}
                             >
                                 <Avatar user={user} isOnline={isOnline} />
-                                <div className="min-w-0">
-                                    <p className="font-medium text-sm truncate">{user.name}</p>
-                                    {typingUsers.includes(user._id) ? (
-                                        <p className="text-xs text-success font-bold animate-pulse">typing...</p>
-                                    ) : (
-                                        <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/70"}`}>
-                                            {isOnline ? "Online" : "Offline"}
-                                        </p>
-                                    )}
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-medium text-sm truncate">{user.name}</p>
+                                        {lm?.createdAt && (
+                                            <span className="text-[10px] text-base-content/40 shrink-0 ml-2">
+                                                {formatTime(lm.createdAt)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        {typingUsers.includes(user._id) ? (
+                                            <p className="text-xs text-success font-bold animate-pulse truncate">typing...</p>
+                                        ) : preview ? (
+                                            <p className="text-xs text-base-content/50 truncate">{preview}</p>
+                                        ) : (
+                                            <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                                {isOnline ? "Online" : "Offline"}
+                                            </p>
+                                        )}
+                                        {user.unreadCount > 0 && (
+                                            <span className="badge badge-primary badge-xs ml-1 shrink-0">
+                                                {user.unreadCount > 99 ? "99+" : user.unreadCount}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </button>
                         )
-                    })
-                )}
+                    }))
+                }
             </div>
 
             {showNewChat && (
@@ -392,7 +412,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const {
         messages, getMessages, sendMessage, deleteMessage,
         isMessagesLoading, subscribeToMessages, unsubscribeFromMessages,
-        typingUsers, markMessagesAsSeen
+        typingUsers, markMessagesAsSeen,
+        hasMore, isLoadingMore, loadMoreMessages
     } = useChatStore()
     const { authUser, onlineUsers } = useAuthStore()
 
@@ -427,11 +448,37 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             const hasUnseen = messages.some(m => m.senderId === selectedUser._id && m.status !== "seen");
             if (hasUnseen) markMessagesAsSeen(selectedUser._id);
         }
-    }, [selectedUser, messages, markMessagesAsSeen]);
+    }, [selectedUser?._id, messages.length]);
 
+    // Scroll to bottom on new messages (but not when loading older ones)
+    const prevMsgCountRef = useRef(0)
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+        if (messages.length > prevMsgCountRef.current) {
+            // Only auto-scroll if new messages were added at the end
+            const lastMsg = messages[messages.length - 1]
+            const prevLast = prevMsgCountRef.current > 0 ? messages[prevMsgCountRef.current - 1] : null
+            if (!prevLast || lastMsg?._id !== prevLast?._id) {
+                bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+            }
+        }
+        prevMsgCountRef.current = messages.length
     }, [messages])
+
+    // Scroll handler for loading older messages
+    const chatContainerRef = useRef(null)
+    const handleScroll = useCallback(() => {
+        const el = chatContainerRef.current
+        if (!el || !hasMore || isLoadingMore) return
+        if (el.scrollTop < 80) {
+            const prevHeight = el.scrollHeight
+            loadMoreMessages(selectedUser._id).then(() => {
+                // Restore scroll position after prepending
+                requestAnimationFrame(() => {
+                    el.scrollTop = el.scrollHeight - prevHeight
+                })
+            })
+        }
+    }, [hasMore, isLoadingMore, selectedUser, loadMoreMessages])
 
     const closeMenu = useCallback(() => setContextMenu({ visible: false }), [])
 
@@ -581,7 +628,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
+            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="loading loading-spinner loading-md text-primary" />
@@ -591,7 +638,13 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                         <p className="text-base-content/30 text-sm">No messages yet — say hi! 👋</p>
                     </div>
                 ) : (
-                    messages.map((msg, i) => {
+                    <>
+                    {isLoadingMore && (
+                        <div className="flex justify-center py-2">
+                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        </div>
+                    )}
+                    {messages.map((msg, i) => {
                         const isMine = msg.senderId === authUser?._id
                         const prev   = messages[i - 1]
                         const showTime = !prev || Math.abs(
@@ -646,7 +699,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                 </div>
                             </div>
                         )
-                    })
+                    })}
+                    </>
                 )}
                 <div ref={bottomRef} />
             </div>
