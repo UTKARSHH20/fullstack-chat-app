@@ -817,7 +817,7 @@ export default function ChatPage() {
     const chatSelected = !!selectedUser
 
     return (
-        <div className="h-[calc(100vh-64px)] h-[calc(100dvh-64px)] flex overflow-hidden bg-base-200 relative">
+        <div className="h-full flex overflow-hidden bg-base-200 relative">
             <Sidebar
                 selectedUser={selectedUser}
                 onSelectUser={setSelectedUser}

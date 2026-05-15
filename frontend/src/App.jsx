@@ -26,16 +26,18 @@ const App = () => {
   }
 
   return (
-    <div>
+    <div className="h-screen h-[100dvh] flex flex-col overflow-hidden">
       <Toaster position="top-center" />
       <Navbar />
-      <Routes>
-        <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
-        <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
-        <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
-        <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
-      </Routes>
+      <div className="flex-1 overflow-hidden">
+        <Routes>
+          <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
+          <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+          <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
+          <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
+        </Routes>
+      </div>
     </div>
   )
 }
