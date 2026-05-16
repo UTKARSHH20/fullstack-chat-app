@@ -33,12 +33,14 @@ export default function CallHandler() {
 
         const handleIceCandidate = async (candidate) => {
             const pc = useCallStore.getState().peerConnection;
-            if (pc) {
+            if (pc && pc.remoteDescription) {
                 try {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
                 } catch (e) {
                     console.error("Error adding ice candidate", e);
                 }
+            } else {
+                useCallStore.getState().addIceCandidate(candidate);
             }
         };
 
@@ -47,6 +49,12 @@ export default function CallHandler() {
             if (pc) {
                 await pc.setRemoteDescription(new RTCSessionDescription(signal));
                 useCallStore.setState({ call: { ...useCallStore.getState().call, hasAccepted: true } });
+                
+                const candidates = useCallStore.getState().remoteIceCandidates;
+                for (const candidate of candidates) {
+                    try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
+                }
+                useCallStore.getState().clearIceCandidates();
             }
         };
 
@@ -150,6 +158,12 @@ export default function CallHandler() {
 
         socket.emit("answerCall", { to: call.caller, signal: pc.localDescription });
         useCallStore.setState({ call: { ...call, hasAccepted: true } });
+
+        const candidates = useCallStore.getState().remoteIceCandidates;
+        for (const candidate of candidates) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
+        }
+        useCallStore.getState().clearIceCandidates();
     };
 
     const rejectCall = () => {

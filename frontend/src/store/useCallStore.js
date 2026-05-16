@@ -6,10 +6,13 @@ const useCallStore = create((set, get) => ({
     remoteStream: null,
     call: null, // { isReceivingCall, caller, signalData, name, type, hasAccepted, hasEnded, isCalling }
     peerConnection: null,
+    remoteIceCandidates: [],
 
     setLocalStream: (stream) => set({ localStream: stream }),
     setRemoteStream: (stream) => set({ remoteStream: stream }),
     setCall: (callData) => set({ call: callData }),
+    addIceCandidate: (candidate) => set((state) => ({ remoteIceCandidates: [...state.remoteIceCandidates, candidate] })),
+    clearIceCandidates: () => set({ remoteIceCandidates: [] }),
     
     initCall: (callerInfo) => {
         set({ call: { ...callerInfo, isReceivingCall: true, hasAccepted: false, hasEnded: false } });
@@ -32,6 +35,7 @@ const useCallStore = create((set, get) => ({
             remoteStream: null,
             call: null,
             peerConnection: null,
+            remoteIceCandidates: [],
         });
     },
 
