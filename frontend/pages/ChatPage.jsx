@@ -123,7 +123,7 @@ const Avatar = ({ user, size = "md", isOnline = false }) => {
     )
 }
 
-function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
+function ContextMenu({ menu, onClose, onReply, onCopy, onDelete, onReact }) {
     const ref = useRef(null)
     useEffect(() => {
         const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
@@ -151,7 +151,7 @@ function ContextMenu({ menu, onClose, onReply, onCopy, onDelete }) {
         >
             <div className="flex items-center justify-around px-3 py-2.5 border-b border-base-300">
                 {EMOJIS.map(e => (
-                    <button key={e} onClick={() => { toast(`Reacted ${e}`, { duration: 1200 }); onClose() }}
+                    <button key={e} onClick={() => { onReact(menu.message._id, e); onClose() }}
                         className="text-xl hover:scale-125 active:scale-150 transition-transform">{e}</button>
                 ))}
                 <button onClick={() => { toast("More reactions — coming soon"); onClose() }}
@@ -411,7 +411,7 @@ function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) {
 
 function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const {
-        messages, getMessages, sendMessage, deleteMessage,
+        messages, getMessages, sendMessage, deleteMessage, addReaction,
         isMessagesLoading, subscribeToMessages, unsubscribeFromMessages,
         typingUsers, markMessagesAsSeen,
         hasMore, isLoadingMore, loadMoreMessages
@@ -501,6 +501,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         closeMenu()
     }
     const handleDelete = async () => { await deleteMessage(contextMenu.message._id); closeMenu() }
+    const handleReact = (messageId, emoji) => { addReaction(messageId, emoji) }
 
     const handleImage = (e) => {
         const file = e.target.files[0]
@@ -707,11 +708,31 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                             <audio src={msg.audio} controls className="max-w-full h-10 mb-1" />
                                         )}
                                         {msg.message && <p className="text-sm">{msg.message}</p>}
+                                        
+                                        {msg.reactions && msg.reactions.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {Object.entries(msg.reactions.reduce((acc, curr) => {
+                                                    acc[curr.emoji] = (acc[curr.emoji] || 0) + 1;
+                                                    return acc;
+                                                }, {})).map(([emoji, count]) => (
+                                                    <button 
+                                                        key={emoji} 
+                                                        onClick={(e) => { e.stopPropagation(); handleReact(msg._id, emoji); }}
+                                                        className={`text-xs px-1.5 py-0.5 rounded-full shadow-sm hover:scale-110 transition-transform ${isMine ? "bg-primary-focus text-primary-content border border-white/20" : "bg-base-100 text-base-content border border-base-300"}`}
+                                                    >
+                                                        {emoji} {count > 1 && <span className="opacity-70 ml-0.5">{count}</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMine ? "text-primary-content/70" : "text-base-content/50"}`}>
                                             <span>{formatTime(msg.createdAt)}</span>
                                             {isMine && (
                                                 msg.status === "seen" ? (
                                                     <CheckCheck className="w-3.5 h-3.5 text-info" />
+                                                ) : msg.status === "delivered" ? (
+                                                    <CheckCheck className="w-3.5 h-3.5" />
                                                 ) : (
                                                     <Check className="w-3.5 h-3.5" />
                                                 )
@@ -732,7 +753,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <div ref={bottomRef} />
             </div>
 
-            <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} />
+            <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} onReact={handleReact} />
 
             {replyTo && (
                 <ReplyBar replyTo={replyTo} authUser={authUser} selectedUser={selectedUser} onCancel={() => setReplyTo(null)} />

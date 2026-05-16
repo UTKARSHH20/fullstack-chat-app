@@ -12,7 +12,13 @@ const messageSchema = new mongoose.Schema(
             message:    { type: String, default: "" },
             senderName: { type: String, default: "" },
         },
-        status: { type: String, enum: ["sent", "seen"], default: "sent" },
+        reactions: [
+            {
+                emoji:  { type: String, required: true },
+                userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+            }
+        ],
+        status: { type: String, enum: ["sent", "delivered", "seen"], default: "sent" },
     },
     { timestamps: true }
 );

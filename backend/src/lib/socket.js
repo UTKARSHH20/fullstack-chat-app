@@ -25,6 +25,24 @@ io.on("connection", (socket) => {
         userSocketMap[userId] = socket.id;
         // Also update lastSeen to 'now' when they connect
         User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.log(err));
+
+        // Mark offline pending messages as delivered
+        import("../models/message.model.js").then(({ default: Message }) => {
+            Message.updateMany(
+                { receiverId: userId, status: "sent" },
+                { $set: { status: "delivered" } }
+            ).then(async (res) => {
+                if (res.modifiedCount > 0) {
+                    const senders = await Message.distinct("senderId", { receiverId: userId, status: "delivered" });
+                    senders.forEach(senderIdStr => {
+                        const senderSocket = getReceiverSocketId(senderIdStr.toString());
+                        if (senderSocket) {
+                            io.to(senderSocket).emit("messagesDelivered", { receiverId: userId });
+                        }
+                    });
+                }
+            }).catch(console.error);
+        });
     }
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));

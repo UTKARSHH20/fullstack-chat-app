@@ -138,6 +138,19 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    addReaction: async (messageId, emoji) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+            set((state) => ({
+                messages: state.messages.map((msg) =>
+                    msg._id === messageId ? { ...msg, reactions: res.data } : msg
+                ),
+            }));
+        } catch (error) {
+            toast.error("Failed to add reaction");
+        }
+    },
+
     markMessagesAsSeen: async (senderId) => {
         try {
             await axiosInstance.put("/messages/mark-seen", { senderId });
@@ -232,6 +245,24 @@ const useChatStore = create((set, get) => ({
                 ),
             }));
         });
+
+        socket.on("messagesDelivered", ({ receiverId }) => {
+            set((state) => ({
+                messages: state.messages.map((msg) =>
+                    msg.receiverId === receiverId && msg.status === "sent" 
+                    ? { ...msg, status: "delivered" } 
+                    : msg
+                ),
+            }));
+        });
+
+        socket.on("messageReacted", ({ messageId, reactions }) => {
+            set((state) => ({
+                messages: state.messages.map((msg) =>
+                    msg._id === messageId ? { ...msg, reactions } : msg
+                ),
+            }));
+        });
     },
 
     unsubscribeFromMessages: () => {
@@ -242,6 +273,8 @@ const useChatStore = create((set, get) => ({
             socket.off("userTyping");
             socket.off("userStoppedTyping");
             socket.off("messagesSeen");
+            socket.off("messagesDelivered");
+            socket.off("messageReacted");
         }
     },
 

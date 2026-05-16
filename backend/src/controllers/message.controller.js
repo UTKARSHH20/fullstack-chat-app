@@ -160,6 +160,10 @@ export const sendMessage = async (req, res) => {
             audioUrl = result.secure_url;
         }
 
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        let status = "sent";
+        if (receiverSocketId) status = "delivered";
+
         const newMessage = await Message.create({
             senderId,
             receiverId,
@@ -167,9 +171,9 @@ export const sendMessage = async (req, res) => {
             image: imageUrl,
             audio: audioUrl,
             replyTo: replyTo || undefined,
+            status,
         });
 
-        const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", newMessage);
         } else {
@@ -240,6 +244,46 @@ export const markMessagesAsSeen = async (req, res) => {
         res.status(200).json({ message: "Messages marked as seen" });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const reactToMessage = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { emoji } = req.body;
+        const userId = req.userId;
+
+        const message = await Message.findById(id);
+        if (!message) return res.status(404).json({ message: "Message not found" });
+
+        // Check if user already reacted with this emoji
+        const existingReactionIndex = message.reactions.findIndex(
+            (r) => r.userId.toString() === userId && r.emoji === emoji
+        );
+
+        if (existingReactionIndex > -1) {
+            // Remove reaction
+            message.reactions.splice(existingReactionIndex, 1);
+        } else {
+            // Remove existing reaction by same user (if we only want 1 reaction per user) or just push it. 
+            // We'll allow multiple emojis per user like Slack/Discord, but usually a single user has unique emojis.
+            message.reactions.push({ emoji, userId });
+        }
+
+        await message.save();
+
+        // Emit to the other person in the chat
+        const otherUserId = message.senderId.toString() === userId ? message.receiverId.toString() : message.senderId.toString();
+        const receiverSocketId = getReceiverSocketId(otherUserId);
+        
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageReacted", { messageId: id, reactions: message.reactions });
+        }
+
+        res.status(200).json(message.reactions);
+    } catch (error) {
+        console.log("Error in reactToMessage", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
