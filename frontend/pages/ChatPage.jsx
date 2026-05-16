@@ -3,11 +3,12 @@ import {
     Image, Send, X, MessageSquare, Search,
     Reply, Copy, Trash2, Forward, Pin, Star,
     ArrowLeft, PenSquare, Smile, Mic, Square,
-    Check, CheckCheck, Loader2,
+    Check, CheckCheck, Loader2, Phone, Video
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
 import useChatStore from "../src/store/useChatStore"
+import useCallStore from "../src/store/useCallStore"
 import { getSocket } from "../lib/socket"
 
 const formatTime = (d) =>
@@ -416,6 +417,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         hasMore, isLoadingMore, loadMoreMessages
     } = useChatStore()
     const { authUser, onlineUsers } = useAuthStore()
+    const { startOutgoingCall } = useCallStore()
 
     const [text, setText] = useState("")
     const [imagePreview, setImagePreview] = useState(null)
@@ -634,6 +636,22 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                             formatLastSeen(selectedUser.lastSeen)
                         )}
                     </p>
+                </div>
+                <div className="ml-auto flex items-center gap-1">
+                    <button 
+                        onClick={() => startOutgoingCall(selectedUser._id, selectedUser.name, "audio")}
+                        className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-primary transition-colors"
+                        title="Voice Call"
+                    >
+                        <Phone className="w-5 h-5" />
+                    </button>
+                    <button 
+                        onClick={() => startOutgoingCall(selectedUser._id, selectedUser.name, "video")}
+                        className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-primary transition-colors"
+                        title="Video Call"
+                    >
+                        <Video className="w-5 h-5" />
+                    </button>
                 </div>
             </div>
 

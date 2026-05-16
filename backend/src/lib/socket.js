@@ -40,6 +40,42 @@ io.on("connection", (socket) => {
         if (receiverSocketId) io.to(receiverSocketId).emit("userStoppedTyping", { senderId: userId });
     });
 
+    // WebRTC Signaling
+    socket.on("callUser", ({ userToCall, signalData, from, name, type }) => {
+        const receiverSocketId = getReceiverSocketId(userToCall);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("incomingCall", { signal: signalData, from, name, type });
+        }
+    });
+
+    socket.on("answerCall", ({ to, signal }) => {
+        const receiverSocketId = getReceiverSocketId(to);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("callAccepted", signal);
+        }
+    });
+
+    socket.on("iceCandidate", ({ to, candidate }) => {
+        const receiverSocketId = getReceiverSocketId(to);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("iceCandidate", candidate);
+        }
+    });
+
+    socket.on("endCall", ({ to }) => {
+        const receiverSocketId = getReceiverSocketId(to);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("callEnded");
+        }
+    });
+
+    socket.on("rejectCall", ({ to }) => {
+        const receiverSocketId = getReceiverSocketId(to);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("callRejected");
+        }
+    });
+
     socket.on("disconnect", async () => {
         if (userId) {
             delete userSocketMap[userId];
