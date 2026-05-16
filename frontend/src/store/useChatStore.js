@@ -2,6 +2,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import axiosInstance from "../../lib/axios";
 import { getSocket } from "../../lib/socket";
+import useAuthStore from "./useAuthStore";
 
 const useChatStore = create((set, get) => ({
     users: [],
@@ -12,7 +13,6 @@ const useChatStore = create((set, get) => ({
     isMessagesLoading: false,
     hasMore: false,
     isLoadingMore: false,
-    _lastSeenMarkedFor: null, // guard to prevent markSeen loops
 
     getUsers: async () => {
         set({ isUsersLoading: true });
@@ -37,7 +37,7 @@ const useChatStore = create((set, get) => ({
     },
 
     getMessages: async (userId) => {
-        set({ isMessagesLoading: true, _lastSeenMarkedFor: null });
+        set({ isMessagesLoading: true });
         try {
             const res = await axiosInstance.get(`/messages/${userId}`);
             set({
@@ -74,10 +74,32 @@ const useChatStore = create((set, get) => ({
 
     sendMessage: async (messageData) => {
         const { selectedUser, messages } = get();
-        if (!selectedUser) return;
+        const { authUser } = useAuthStore.getState();
+        if (!selectedUser || !authUser) return;
+
+        // Optimistic UI Update
+        const tempId = "temp-" + Date.now();
+        const optimisticMsg = {
+            _id: tempId,
+            senderId: authUser._id,
+            receiverId: selectedUser._id,
+            message: messageData.message || "",
+            image: messageData.image || "",
+            audio: messageData.audio || "",
+            replyTo: messageData.replyTo || null,
+            status: "sent",
+            createdAt: new Date().toISOString()
+        };
+
+        set({ messages: [...messages, optimisticMsg] });
+
         try {
             const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-            set({ messages: [...messages, res.data] });
+            
+            // Replace temporary message with the real one from the server
+            set((state) => ({
+                messages: state.messages.map(m => m._id === tempId ? res.data : m)
+            }));
 
             // Update sidebar: lastMessage for this user
             set((state) => ({
@@ -99,6 +121,10 @@ const useChatStore = create((set, get) => ({
             }));
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to send message");
+            // Revert optimistic update on failure
+            set((state) => ({
+                messages: state.messages.filter(m => m._id !== tempId)
+            }));
         }
     },
 
@@ -113,10 +139,6 @@ const useChatStore = create((set, get) => ({
     },
 
     markMessagesAsSeen: async (senderId) => {
-        // Guard: don't re-call if we've already marked for this sender in this session
-        if (get()._lastSeenMarkedFor === senderId) return;
-        set({ _lastSeenMarkedFor: senderId });
-
         try {
             await axiosInstance.put("/messages/mark-seen", { senderId });
             set((state) => ({
@@ -224,7 +246,7 @@ const useChatStore = create((set, get) => ({
     },
 
     setSelectedUser: (user) => {
-        if (!user) return set({ selectedUser: null, messages: [], _lastSeenMarkedFor: null });
+        if (!user) return set({ selectedUser: null, messages: [] });
         const current = get().selectedUser;
         if (current?._id === user?._id) return;
 
@@ -232,7 +254,6 @@ const useChatStore = create((set, get) => ({
         set((state) => ({
             selectedUser: user,
             messages: [],
-            _lastSeenMarkedFor: null,
             users: state.users.map((u) =>
                 u._id === user._id ? { ...u, unreadCount: 0 } : u
             ),

@@ -556,9 +556,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
     const handleSend = async () => {
         if (!text.trim() && !imageBase64 && !audioBase64) return
-        setSending(true)
-        setShowEmoji(false)
-        await sendMessage({
+        
+        const payload = {
             message: text.trim(),
             image: imageBase64 || "",
             audio: audioBase64 || "",
@@ -567,8 +566,18 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 message: replyTo.message,
                 senderName: replyTo.senderId === authUser._id ? authUser.name : selectedUser.name,
             } : null,
-        })
-        setText(""); setImagePreview(null); setImageBase64(null); setAudioBase64(null); setReplyTo(null)
+        }
+
+        setSending(true)
+        setShowEmoji(false)
+        setText("")
+        setImagePreview(null)
+        setImageBase64(null)
+        setAudioBase64(null)
+        setReplyTo(null)
+
+        await sendMessage(payload)
+        
         setSending(false)
     }
 
@@ -793,7 +802,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 )}
 
                 {!isRecording && (
-                    text.trim() || imageBase64 || audioBase64 ? (
+                    text.trim() || imageBase64 || audioBase64 || sending ? (
                         <button onClick={handleSend} disabled={sending}
                             className="btn btn-primary btn-sm btn-square shrink-0">
                             {sending ? <span className="loading loading-spinner loading-xs" /> : <Send className="w-4 h-4" />}
