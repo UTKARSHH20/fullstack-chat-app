@@ -1,7 +1,7 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
-import { io, getReceiverSocketId } from "../lib/socket.js";
+import { io, getReceiverSocketIds } from "../lib/socket.js";
 import webpush from "../lib/webpush.js";
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -48,7 +48,8 @@ export const getUsers = async (req, res) => {
                 const unreadCount = await Message.countDocuments({
                     senderId: partnerId,
                     receiverId: userId,
-                    status: "sent",
+                    // Count both sent AND delivered — any message not yet "seen"
+                    status: { $in: ["sent", "delivered"] },
                 });
 
                 return {
@@ -160,9 +161,9 @@ export const sendMessage = async (req, res) => {
             audioUrl = result.secure_url;
         }
 
-        const receiverSocketId = getReceiverSocketId(receiverId);
+        const receiverSocketIds = getReceiverSocketIds(receiverId);
         let status = "sent";
-        if (receiverSocketId) status = "delivered";
+        if (receiverSocketIds.length > 0) status = "delivered";
 
         const newMessage = await Message.create({
             senderId,
@@ -174,8 +175,8 @@ export const sendMessage = async (req, res) => {
             status,
         });
 
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
+        if (receiverSocketIds.length > 0) {
+            receiverSocketIds.forEach(socketId => io.to(socketId).emit("newMessage", newMessage));
         } else {
             const receiverUser = await User.findById(receiverId);
             const senderUser = await User.findById(senderId);
@@ -213,8 +214,11 @@ export const deleteMessage = async (req, res) => {
 
         await Message.findByIdAndDelete(id);
 
-        const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
-        if (receiverSocketId) io.to(receiverSocketId).emit("deleteMessage", id);
+        const receiverSocketIds = getReceiverSocketIds(message.receiverId.toString());
+        receiverSocketIds.forEach(socketId => io.to(socketId).emit("deleteMessage", id));
+        
+        const senderSocketIds = getReceiverSocketIds(senderId);
+        senderSocketIds.forEach(socketId => io.to(socketId).emit("deleteMessage", id));
 
         res.status(200).json({ _id: id });
     } catch (error) {
@@ -230,16 +234,14 @@ export const markMessagesAsSeen = async (req, res) => {
         const receiverId = req.userId;
 
         const result = await Message.updateMany(
-            { senderId, receiverId, status: "sent" },
+            { senderId, receiverId, status: { $ne: "seen" } },
             { $set: { status: "seen" } }
         );
 
         // Only emit socket event if messages were actually updated
         if (result.modifiedCount > 0) {
-            const senderSocketId = getReceiverSocketId(senderId);
-            if (senderSocketId) {
-                io.to(senderSocketId).emit("messagesSeen", { receiverId });
-            }
+            const senderSocketIds = getReceiverSocketIds(senderId);
+            senderSocketIds.forEach(socketId => io.to(socketId).emit("messagesSeen", { receiverId }));
         }
         res.status(200).json({ message: "Messages marked as seen" });
     } catch (error) {
@@ -275,11 +277,11 @@ export const reactToMessage = async (req, res) => {
 
         // Emit to the other person in the chat
         const otherUserId = message.senderId.toString() === userId ? message.receiverId.toString() : message.senderId.toString();
-        const receiverSocketId = getReceiverSocketId(otherUserId);
+        const receiverSocketIds = getReceiverSocketIds(otherUserId);
+        const senderSocketIds = getReceiverSocketIds(userId);
         
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("messageReacted", { messageId: id, reactions: message.reactions });
-        }
+        receiverSocketIds.forEach(socketId => io.to(socketId).emit("messageReacted", { messageId: id, reactions: message.reactions }));
+        senderSocketIds.forEach(socketId => io.to(socketId).emit("messageReacted", { messageId: id, reactions: message.reactions }));
 
         res.status(200).json(message.reactions);
     } catch (error) {

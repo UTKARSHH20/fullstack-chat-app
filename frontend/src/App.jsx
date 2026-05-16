@@ -38,7 +38,7 @@ const App = () => {
   }
 
   return (
-    <div className="h-screen h-[100dvh] flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Toaster position="top-center" />
       <CallHandler />
       <Navbar />

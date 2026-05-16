@@ -83,10 +83,8 @@ const useChatStore = create((set, get) => ({
             _id: tempId,
             senderId: authUser._id,
             receiverId: selectedUser._id,
-            message: messageData.message || "",
-            image: messageData.image || "",
-            audio: messageData.audio || "",
-            replyTo: messageData.replyTo || null,
+            ...messageData,
+            reactions: [],
             status: "sent",
             createdAt: new Date().toISOString()
         };
@@ -170,20 +168,43 @@ const useChatStore = create((set, get) => ({
 
         socket.on("newMessage", (message) => {
             const { selectedUser, messages, users } = get();
+            const authUser = useAuthStore.getState().authUser;
 
-            // If message is from the currently selected user → add to chat
-            if (selectedUser && message.senderId === selectedUser._id) {
-                set({ messages: [...messages, message] });
+            // Normalize all IDs to strings to avoid ObjectId vs string mismatches
+            const msgSenderId   = message.senderId?.toString();
+            const msgReceiverId = message.receiverId?.toString();
+            const selUserId     = selectedUser?._id?.toString();
+            const authUserId2   = authUser?._id?.toString();
+
+            // If message is from the selected user OR sent by me to the selected user (from another device)
+            const isFromSelectedUser = !!selUserId && msgSenderId === selUserId;
+            const isToSelectedUser   = !!selUserId && msgSenderId === authUserId2 && msgReceiverId === selUserId;
+            
+            if (isFromSelectedUser || isToSelectedUser) {
+                // Prevent duplicate optimistic messages on the sending device
+                const msgExists = messages.some(m => m._id?.toString() === message._id?.toString());
+                if (!msgExists) {
+                    set({ messages: [...messages, message] });
+                }
+                
+                // Mark as seen if it's from them (and chat is open)
+                if (isFromSelectedUser) {
+                    get().markMessagesAsSeen(selectedUser._id);
+                }
             }
 
-            // Update sidebar for this sender
-            const senderId = message.senderId;
-            const senderInSidebar = users.find((u) => u._id === senderId);
+            // --- Sidebar update ---
+            // Identify the "other person" in the conversation regardless of who sent it.
+            // If I sent it (from another device), the other person is the receiver.
+            // If someone else sent it to me, the other person is the sender.
+            const iSentThis = msgSenderId === authUserId2;
+            const otherUserId = iSentThis ? msgReceiverId : msgSenderId;
+            const otherUserInSidebar = users.find((u) => u._id?.toString() === otherUserId);
 
-            if (senderInSidebar) {
+            if (otherUserInSidebar) {
                 set((state) => ({
                     users: state.users.map((u) =>
-                        u._id === senderId
+                        u._id?.toString() === otherUserId
                             ? {
                                   ...u,
                                   lastMessage: {
@@ -194,9 +215,11 @@ const useChatStore = create((set, get) => ({
                                       senderId: message.senderId,
                                       createdAt: message.createdAt,
                                   },
-                                  // Increment unread only if this is NOT the active chat
+                                  // Increment unread only if:
+                                  //   - I did NOT send this message (i.e. it came from the other person)
+                                  //   - AND this is not the currently open chat
                                   unreadCount:
-                                      state.selectedUser?._id === senderId
+                                      iSentThis || state.selectedUser?._id?.toString() === otherUserId
                                           ? u.unreadCount
                                           : (u.unreadCount || 0) + 1,
                               }
@@ -204,13 +227,13 @@ const useChatStore = create((set, get) => ({
                     ),
                 }));
             } else {
-                // Sender not in sidebar → refetch users to include them
+                // Other person not in sidebar yet → refetch to include them
                 get().getUsers();
             }
 
             // In-app notification for messages when tab is hidden
             if (document.visibilityState !== "visible" && Notification.permission === "granted") {
-                const sender = users.find((u) => u._id === message.senderId);
+                const sender = users.find((u) => u._id?.toString() === msgSenderId);
                 const senderName = sender?.name || "Someone";
                 const body = message.message || (message.audio ? "🎤 Voice message" : "📷 Image");
                 const n = new Notification(`New message from ${senderName}`, {

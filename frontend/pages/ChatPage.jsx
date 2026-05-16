@@ -72,7 +72,7 @@ function EmojiPicker({ onSelect, onClose }) {
     return (
         <div
             ref={ref}
-            className="absolute bottom-16 left-2 z-50 bg-base-200 border border-base-300 rounded-2xl shadow-2xl w-72 flex flex-col overflow-hidden"
+            className="absolute bottom-full mb-2 left-0 z-50 bg-base-200 border border-base-300 rounded-2xl shadow-2xl w-72 max-w-[calc(100vw-1rem)] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
         >
             {/* Category tabs */}
@@ -436,6 +436,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const mediaRecorderRef = useRef(null)
     const audioChunksRef = useRef([])
     const timerRef = useRef(null)
+    // Long-press support for mobile context menu
+    const longPressTimer = useRef(null)
 
     useEffect(() => {
         if (selectedUser?._id) {
@@ -452,19 +454,16 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         }
     }, [selectedUser?._id, messages.length]);
 
-    // Scroll to bottom on new messages (but not when loading older ones)
+    // Scroll to bottom on new messages — but NOT when older messages are prepended by loadMore
     const prevMsgCountRef = useRef(0)
     useEffect(() => {
-        if (messages.length > prevMsgCountRef.current) {
-            // Only auto-scroll if new messages were added at the end
-            const lastMsg = messages[messages.length - 1]
-            const prevLast = prevMsgCountRef.current > 0 ? messages[prevMsgCountRef.current - 1] : null
-            if (!prevLast || lastMsg?._id !== prevLast?._id) {
-                bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-            }
+        const added = messages.length - prevMsgCountRef.current
+        // isLoadingMore = we just prepended older messages; skip auto-scroll
+        if (added > 0 && !isLoadingMore) {
+            bottomRef.current?.scrollIntoView({ behavior: "smooth" })
         }
         prevMsgCountRef.current = messages.length
-    }, [messages])
+    }, [messages.length, isLoadingMore])
 
     // Scroll handler for loading older messages
     const chatContainerRef = useRef(null)
@@ -490,6 +489,20 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         const x = Math.min(e.clientX, window.innerWidth  - W - 8)
         const y = Math.min(e.clientY, window.innerHeight - H - 8)
         setContextMenu({ visible: true, x, y, message: msg, isMine })
+    }
+
+    // Mobile long-press context menu (onContextMenu doesn't fire on touch screens)
+    const handleTouchStart = (e, msg, isMine) => {
+        longPressTimer.current = setTimeout(() => {
+            const touch = e.touches[0]
+            const W = 210, H = 320
+            const x = Math.min(touch.clientX, window.innerWidth  - W - 8)
+            const y = Math.min(touch.clientY, window.innerHeight - H - 8)
+            setContextMenu({ visible: true, x, y, message: msg, isMine })
+        }, 500)
+    }
+    const handleTouchEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current)
     }
 
     const handleReply  = () => { setReplyTo(contextMenu.message); closeMenu() }
@@ -588,6 +601,12 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
     const handleTyping = (e) => {
         setText(e.target.value)
+        // Auto-resize textarea up to ~4 lines
+        const ta = textareaRef.current
+        if (ta) {
+            ta.style.height = "auto"
+            ta.style.height = Math.min(ta.scrollHeight, 120) + "px"
+        }
         const socket = getSocket()
         if (socket && selectedUser) {
             socket.emit("typing", { receiverId: selectedUser._id })
@@ -656,7 +675,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             </div>
 
-            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
+            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1 overscroll-contain">
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="loading loading-spinner loading-md text-primary" />
@@ -695,6 +714,9 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                                     <div
                                         className={`chat-bubble shadow-sm max-w-[75%] break-words cursor-pointer select-none ${isMine ? "chat-bubble-primary" : ""}`}
                                         onContextMenu={e => handleContextMenu(e, msg, isMine)}
+                                        onTouchStart={e => handleTouchStart(e, msg, isMine)}
+                                        onTouchEnd={handleTouchEnd}
+                                        onTouchMove={handleTouchEnd}
                                     >
                 {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
                                         {msg.image && (
@@ -771,7 +793,7 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             )}
 
-            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative shrink-0">
+            <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative shrink-0 safe-bottom">
                 {showEmoji && (
                     <EmojiPicker
                         onSelect={(emoji) => {
@@ -832,7 +854,8 @@ function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                             ref={textareaRef}
                             rows={1}
                             placeholder="Type a message…"
-                            className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed"
+                            className="textarea textarea-bordered textarea-sm flex-1 resize-none leading-relaxed overflow-y-auto"
+                            style={{ maxHeight: "120px" }}
                             value={text}
                             onChange={handleTyping}
                             onKeyDown={handleKeyDown}

@@ -7,7 +7,11 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+        // Allow any origin so the app works on phones/tablets on local network
+        // and in all dev environments. Lock this down to your domain in production.
+        origin: process.env.ALLOWED_ORIGINS
+            ? process.env.ALLOWED_ORIGINS.split(",")
+            : true,
         credentials: true,
     },
 });
@@ -16,13 +20,15 @@ import User from "../models/user.model.js";
 
 const userSocketMap = {};
 
-export const getReceiverSocketId = (userId) => userSocketMap[userId];
+export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
 
 io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
 
     if (userId) {
-        userSocketMap[userId] = socket.id;
+        if (!userSocketMap[userId]) userSocketMap[userId] = [];
+        userSocketMap[userId].push(socket.id);
+        
         // Also update lastSeen to 'now' when they connect
         User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.log(err));
 
@@ -35,10 +41,8 @@ io.on("connection", (socket) => {
                 if (res.modifiedCount > 0) {
                     const senders = await Message.distinct("senderId", { receiverId: userId, status: "delivered" });
                     senders.forEach(senderIdStr => {
-                        const senderSocket = getReceiverSocketId(senderIdStr.toString());
-                        if (senderSocket) {
-                            io.to(senderSocket).emit("messagesDelivered", { receiverId: userId });
-                        }
+                        const senderSockets = getReceiverSocketIds(senderIdStr.toString());
+                        senderSockets.forEach(s => io.to(s).emit("messagesDelivered", { receiverId: userId }));
                     });
                 }
             }).catch(console.error);
@@ -49,58 +53,51 @@ io.on("connection", (socket) => {
 
     // Typing indicators
     socket.on("typing", ({ receiverId }) => {
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) io.to(receiverSocketId).emit("userTyping", { senderId: userId });
+        const receiverSockets = getReceiverSocketIds(receiverId);
+        receiverSockets.forEach(s => io.to(s).emit("userTyping", { senderId: userId }));
     });
 
     socket.on("stopTyping", ({ receiverId }) => {
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) io.to(receiverSocketId).emit("userStoppedTyping", { senderId: userId });
+        const receiverSockets = getReceiverSocketIds(receiverId);
+        receiverSockets.forEach(s => io.to(s).emit("userStoppedTyping", { senderId: userId }));
     });
 
     // WebRTC Signaling
     socket.on("callUser", ({ userToCall, signalData, from, name, type }) => {
-        const receiverSocketId = getReceiverSocketId(userToCall);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("incomingCall", { signal: signalData, from, name, type });
-        }
+        const receiverSockets = getReceiverSocketIds(userToCall);
+        receiverSockets.forEach(s => io.to(s).emit("incomingCall", { signal: signalData, from, name, type }));
     });
 
     socket.on("answerCall", ({ to, signal }) => {
-        const receiverSocketId = getReceiverSocketId(to);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("callAccepted", signal);
-        }
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("callAccepted", signal));
     });
 
     socket.on("iceCandidate", ({ to, candidate }) => {
-        const receiverSocketId = getReceiverSocketId(to);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("iceCandidate", candidate);
-        }
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("iceCandidate", candidate));
     });
 
     socket.on("endCall", ({ to }) => {
-        const receiverSocketId = getReceiverSocketId(to);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("callEnded");
-        }
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("callEnded"));
     });
 
     socket.on("rejectCall", ({ to }) => {
-        const receiverSocketId = getReceiverSocketId(to);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("callRejected");
-        }
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("callRejected"));
     });
 
     socket.on("disconnect", async () => {
         if (userId) {
-            delete userSocketMap[userId];
-            try {
-                await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-            } catch (err) {
-                console.log(err);
+            userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
+            if (userSocketMap[userId].length === 0) {
+                delete userSocketMap[userId];
+                try {
+                    await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+                } catch (err) {
+                    console.log(err);
+                }
             }
         }
         io.emit("getOnlineUsers", Object.keys(userSocketMap));

@@ -41,3 +41,28 @@ p, span, label {
   background: oklch(var(--p) / 0.3);
   color: oklch(var(--pc));
 }
+
+/* ── Mobile / Touch fixes ────────────────────────── */
+html, body {
+  /* Prevent the whole page from bouncing on iOS */
+  overscroll-behavior: none;
+  /* Remove the grey tap flash on mobile */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Smooth native momentum scrolling on iOS */
+.overflow-y-auto, [class*="overflow-y-auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area padding — keeps content above iPhone home indicator */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent text-size adjust on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
