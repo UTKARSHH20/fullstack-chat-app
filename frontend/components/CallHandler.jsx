@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff } from "lucide-react";
 import useCallStore from "../src/store/useCallStore";
 import useAuthStore from "../src/store/useAuthStore";
@@ -13,6 +14,19 @@ export default function CallHandler() {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
+    const [callDuration, setCallDuration] = useState(0);
+    const callTimerRef = useRef(null);
+
+    useEffect(() => {
+        if (call?.hasAccepted && remoteStream) {
+            callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+        }
+        return () => { if (callTimerRef.current) clearInterval(callTimerRef.current); };
+    }, [call?.hasAccepted, remoteStream]);
+
+    useEffect(() => {
+        if (!call) setCallDuration(0);
+    }, [call]);
 
     useEffect(() => {
         if (localVideoRef.current && localStream) {
@@ -52,7 +66,7 @@ export default function CallHandler() {
                 
                 const candidates = useCallStore.getState().remoteIceCandidates;
                 for (const candidate of candidates) {
-                    try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
+                    try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.warn("ICE candidate error:", e) }
                 }
                 useCallStore.getState().clearIceCandidates();
             }
@@ -113,7 +127,7 @@ export default function CallHandler() {
             return stream;
         } catch (error) {
             console.error("Failed to get local stream", error);
-            alert("Could not access camera/microphone. Please check permissions.");
+            toast.error("Could not access camera/microphone. Please check permissions.");
             return null;
         }
     };
@@ -161,7 +175,7 @@ export default function CallHandler() {
 
         const candidates = useCallStore.getState().remoteIceCandidates;
         for (const candidate of candidates) {
-            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
+            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.warn("ICE candidate error:", e) }
         }
         useCallStore.getState().clearIceCandidates();
     };
@@ -244,7 +258,7 @@ export default function CallHandler() {
                                 <Phone className="w-12 h-12 text-primary" />
                             </div>
                             <p className="text-2xl font-semibold text-white/90">{call.name}</p>
-                            <p className="text-white/60">00:00</p>
+                            <p className="text-white/60">{Math.floor(callDuration / 60).toString().padStart(2, '0')}:{(callDuration % 60).toString().padStart(2, '0')}</p>
                             <audio ref={remoteVideoRef} autoPlay playsInline className="hidden" />
                         </div>
                     )

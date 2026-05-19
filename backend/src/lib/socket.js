@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import Message from "../models/message.model.js";
+import User from "../models/user.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -16,8 +18,6 @@ const io = new Server(server, {
     },
 });
 
-import User from "../models/user.model.js";
-
 const userSocketMap = {};
 
 export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
@@ -30,23 +30,21 @@ io.on("connection", (socket) => {
         userSocketMap[userId].push(socket.id);
         
         // Also update lastSeen to 'now' when they connect
-        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.log(err));
+        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
 
         // Mark offline pending messages as delivered
-        import("../models/message.model.js").then(({ default: Message }) => {
-            Message.updateMany(
-                { receiverId: userId, status: "sent" },
-                { $set: { status: "delivered" } }
-            ).then(async (res) => {
-                if (res.modifiedCount > 0) {
-                    const senders = await Message.distinct("senderId", { receiverId: userId, status: "delivered" });
-                    senders.forEach(senderIdStr => {
-                        const senderSockets = getReceiverSocketIds(senderIdStr.toString());
-                        senderSockets.forEach(s => io.to(s).emit("messagesDelivered", { receiverId: userId }));
-                    });
-                }
-            }).catch(console.error);
-        });
+        Message.updateMany(
+            { receiverId: userId, status: "sent" },
+            { $set: { status: "delivered" } }
+        ).then(async (res) => {
+            if (res.modifiedCount > 0) {
+                const senders = await Message.distinct("senderId", { receiverId: userId, status: "delivered" });
+                senders.forEach(senderIdStr => {
+                    const senderSockets = getReceiverSocketIds(senderIdStr.toString());
+                    senderSockets.forEach(s => io.to(s).emit("messagesDelivered", { receiverId: userId }));
+                });
+            }
+        }).catch(console.error);
     }
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -96,7 +94,7 @@ io.on("connection", (socket) => {
                 try {
                     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
                 } catch (err) {
-                    console.log(err);
+                    console.error(err);
                 }
             }
         }

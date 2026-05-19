@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
@@ -9,82 +10,67 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── GET /messages/users ──────────────────────────────────────────
 // Returns conversation partners with lastMessage + unreadCount, sorted by recency
-export const getUsers = async (req, res) => {
+export async function getUsers(req, res) {
+    const userId = new mongoose.Types.ObjectId(req.userId);
     try {
-        const userId = req.userId;
+        const conversations = await Message.aggregate([
+            { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
+            { $sort: { createdAt: -1 } },
+            {
+                $group: {
+                    _id: {
+                        partnerId: {
+                            $cond: [{ $eq: ["$senderId", userId] }, "$receiverId", "$senderId"]
+                        },
+                    },
+                    lastMessage: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "_id.partnerId",
+                    foreignField: "_id",
+                    as: "partner",
+                },
+            },
+            { $unwind: "$partner" },
+            { $sort: { "lastMessage.createdAt": -1 } },
+        ]);
 
-        // 1. Find all unique conversation partners
-        const msgs = await Message.find({
-            $or: [{ senderId: userId }, { receiverId: userId }]
-        }).select("senderId receiverId");
+        // Get unread counts in a single query
+        const unreadCounts = await Message.aggregate([
+            { $match: { receiverId: userId, status: { $in: ["sent", "delivered"] } } },
+            { $group: { _id: "$senderId", count: { $sum: 1 } } },
+        ]);
+        const unreadMap = Object.fromEntries(unreadCounts.map(u => [u._id.toString(), u.count]));
 
-        const partnerIds = new Set();
-        msgs.forEach(m => {
-            const s = m.senderId.toString();
-            const r = m.receiverId.toString();
-            if (s !== userId) partnerIds.add(s);
-            if (r !== userId) partnerIds.add(r);
-        });
+        const result = conversations.map(({ partner, lastMessage }) => ({
+            _id: partner._id,
+            name: partner.name,
+            email: partner.email,
+            profilePicture: partner.profilePicture,
+            lastSeen: partner.lastSeen,
+            lastMessage: {
+                _id: lastMessage._id,
+                message: lastMessage.message,
+                image: !!lastMessage.image,
+                audio: !!lastMessage.audio,
+                senderId: lastMessage.senderId,
+                createdAt: lastMessage.createdAt,
+            },
+            unreadCount: unreadMap[partner._id.toString()] || 0,
+        }));
 
-        if (partnerIds.size === 0) return res.status(200).json([]);
-
-        // 2. Get user documents
-        const users = await User.find({ _id: { $in: [...partnerIds] } }).select("-password");
-
-        // 3. For each partner, get last message + unread count
-        const enriched = await Promise.all(
-            users.map(async (user) => {
-                const partnerId = user._id.toString();
-
-                const lastMessage = await Message.findOne({
-                    $or: [
-                        { senderId: userId, receiverId: partnerId },
-                        { senderId: partnerId, receiverId: userId },
-                    ],
-                })
-                    .sort({ createdAt: -1 })
-                    .lean();
-
-                const unreadCount = await Message.countDocuments({
-                    senderId: partnerId,
-                    receiverId: userId,
-                    // Count both sent AND delivered — any message not yet "seen"
-                    status: { $in: ["sent", "delivered"] },
-                });
-
-                return {
-                    ...user.toObject(),
-                    lastMessage: lastMessage
-                        ? {
-                              _id: lastMessage._id,
-                              message: lastMessage.message,
-                              image: !!lastMessage.image,
-                              audio: !!lastMessage.audio,
-                              senderId: lastMessage.senderId,
-                              createdAt: lastMessage.createdAt,
-                          }
-                        : null,
-                    unreadCount,
-                };
-            })
-        );
-
-        // 4. Sort by most recent message
-        enriched.sort((a, b) => {
-            const aTime = a.lastMessage?.createdAt || 0;
-            const bTime = b.lastMessage?.createdAt || 0;
-            return new Date(bTime) - new Date(aTime);
-        });
-
-        res.status(200).json(enriched);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(200).json(result);
+    } catch (err) {
+        console.error("getUsers:", err.message);
+        res.status(500).json({ message: "Could not load conversations" });
     }
-};
+}
 
 // ── GET /messages/search?q= ──────────────────────────────────────
-export const searchUsers = async (req, res) => {
+export async function searchUsers(req, res) {
     try {
         const { q = "" } = req.query;
         if (!q.trim()) return res.status(200).json([]);
@@ -97,15 +83,15 @@ export const searchUsers = async (req, res) => {
             name: { $regex: safeQuery, $options: "i" },
         }).select("-password").limit(10);
         res.status(200).json(users);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("searchUsers:", err.message);
+        res.status(500).json({ message: "Could not search users" });
     }
-};
+}
 
 // ── GET /messages/:id?before=&limit= ────────────────────────────
 // Cursor-based pagination: returns `limit` messages older than `before`
-export const getMessages = async (req, res) => {
+export async function getMessages(req, res) {
     try {
         const { id: receiverId } = req.params;
         const senderId = req.userId;
@@ -136,14 +122,14 @@ export const getMessages = async (req, res) => {
         messages.reverse();
 
         res.status(200).json({ messages, hasMore });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("getMessages:", err.message);
+        res.status(500).json({ message: "Could not load messages" });
     }
-};
+}
 
 // ── POST /messages/send/:id ──────────────────────────────────────
-export const sendMessage = async (req, res) => {
+export async function sendMessage(req, res) {
     try {
         const { id: receiverId } = req.params;
         const senderId = req.userId;
@@ -188,21 +174,21 @@ export const sendMessage = async (req, res) => {
                 });
                 try {
                     await webpush.sendNotification(receiverUser.pushSubscription, payload);
-                } catch (err) {
-                    console.log("Web push error:", err);
+                } catch (pushErr) {
+                    console.error("Web push error:", pushErr.message);
                 }
             }
         }
 
         res.status(201).json(newMessage);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("sendMessage:", err.message);
+        res.status(500).json({ message: "Could not send message" });
     }
-};
+}
 
 // ── DELETE /messages/:id ─────────────────────────────────────────
-export const deleteMessage = async (req, res) => {
+export async function deleteMessage(req, res) {
     try {
         const { id } = req.params;
         const senderId = req.userId;
@@ -221,14 +207,14 @@ export const deleteMessage = async (req, res) => {
         senderSocketIds.forEach(socketId => io.to(socketId).emit("deleteMessage", id));
 
         res.status(200).json({ _id: id });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("deleteMessage:", err.message);
+        res.status(500).json({ message: "Could not delete message" });
     }
-};
+}
 
 // ── PUT /messages/mark-seen ──────────────────────────────────────
-export const markMessagesAsSeen = async (req, res) => {
+export async function markMessagesAsSeen(req, res) {
     try {
         const { senderId } = req.body;
         const receiverId = req.userId;
@@ -244,13 +230,13 @@ export const markMessagesAsSeen = async (req, res) => {
             senderSocketIds.forEach(socketId => io.to(socketId).emit("messagesSeen", { receiverId }));
         }
         res.status(200).json({ message: "Messages marked as seen" });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("markMessagesAsSeen:", err.message);
+        res.status(500).json({ message: "Could not mark messages as seen" });
     }
-};
+}
 
-export const reactToMessage = async (req, res) => {
+export async function reactToMessage(req, res) {
     try {
         const { id } = req.params;
         const { emoji } = req.body;
@@ -284,8 +270,8 @@ export const reactToMessage = async (req, res) => {
         senderSocketIds.forEach(socketId => io.to(socketId).emit("messageReacted", { messageId: id, reactions: message.reactions }));
 
         res.status(200).json(message.reactions);
-    } catch (error) {
-        console.log("Error in reactToMessage", error);
-        res.status(500).json({ message: "Internal server error" });
+    } catch (err) {
+        console.error("reactToMessage:", err.message);
+        res.status(500).json({ message: "Could not update reaction" });
     }
-};
+}

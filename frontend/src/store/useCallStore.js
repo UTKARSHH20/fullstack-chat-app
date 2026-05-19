@@ -13,7 +13,8 @@ const useCallStore = create((set, get) => ({
     setCall: (callData) => set({ call: callData }),
     addIceCandidate: (candidate) => set((state) => ({ remoteIceCandidates: [...state.remoteIceCandidates, candidate] })),
     clearIceCandidates: () => set({ remoteIceCandidates: [] }),
-    
+    setPeer: (pc) => set({ peerConnection: pc }),
+
     initCall: (callerInfo) => {
         set({ call: { ...callerInfo, isReceivingCall: true, hasAccepted: false, hasEnded: false } });
     },

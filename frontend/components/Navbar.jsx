@@ -13,8 +13,10 @@ const Navbar = () => {
         navigate("/login")
     }
 
+    const DARK_THEMES = new Set(["dark","night","dracula","synthwave","luxury","coffee","halloween","black","dim","forest","business"])
+    const isDark = DARK_THEMES.has(theme)
     const toggleTheme = () => {
-        setTheme(theme === "dark" ? "light" : "dark")
+        setTheme(isDark ? "light" : "dark")
     }
 
     return (
@@ -35,9 +37,9 @@ const Navbar = () => {
                     onClick={toggleTheme}
                     className="btn btn-ghost btn-sm btn-circle"
                     aria-label="Toggle theme"
-                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                    title={isDark ? "Switch to light mode" : "Switch to dark mode"}
                 >
-                    {theme === "dark"
+                    {isDark
                         ? <Sun className="w-4 h-4" />
                         : <Moon className="w-4 h-4" />
                     }

@@ -127,6 +127,22 @@ const useAuthStore = create((set) => ({
             set({ isLoading: false });
         }
     },
+
+    googleLogin: async (credential) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.post("/auth/google", { credential });
+            set({ authUser: res.data });
+            connectSocket(res.data._id);
+            requestNotificationPermission();
+            toast.success("Signed in with Google!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Google sign-in failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
 }));
 
 export default useAuthStore;

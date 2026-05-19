@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Camera, Pencil } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
 
@@ -52,7 +53,6 @@ export default function ProfilePage() {
         <div className="min-h-screen flex items-center justify-center bg-base-200 p-4">
             <div className="bg-base-100 rounded-2xl shadow-xl overflow-hidden w-full max-w-3xl">
                 <div className="relative h-40 bg-gradient-to-r from-primary to-secondary">
-                    <div className="absolute inset-0 bg-pattern opacity-20" />
                     <div className="absolute inset-0 flex items-end px-8 pb-4">
                         <div className="avatar -mb-16 border-4 border-base-100 rounded-full shadow-lg">
                             <div className="w-32 rounded-full bg-base-300 relative">
@@ -75,9 +75,7 @@ export default function ProfilePage() {
                                             className="hidden"
                                             onChange={handleFileChange}
                                         />
-                                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-5.586a1 1 0 01-.707-.293l-1.414-1.414A1 1 0 009.586 3H7a1 1 0 00-1 1z" clipRule="evenodd" />
-                                        </svg>
+                                        <Camera className="w-8 h-8 text-white" />
                                     </label>
                                 )}
                             </div>
@@ -98,9 +96,7 @@ export default function ProfilePage() {
                                     onClick={() => setIsEditing(true)}
                                     className="btn btn-primary"
                                 >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
+                                    <Pencil className="w-5 h-5" />
                                     Edit
                                 </button>
                             ) : null}
@@ -108,7 +104,6 @@ export default function ProfilePage() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Name */}
                         <div className="form-control">
                             <label className="label">
                                 <span className="label-text font-medium">Full Name</span>
@@ -122,7 +117,6 @@ export default function ProfilePage() {
                             />
                         </div>
 
-                        {/* Email (read-only) */}
                         <div className="form-control">
                             <label className="label">
                                 <span className="label-text font-medium">Email Address</span>
@@ -136,7 +130,6 @@ export default function ProfilePage() {
                             />
                         </div>
 
-                        {/* Submit button (only visible while editing) */}
                         {isEditing && (
                             <div className="flex gap-3 pt-2">
                                 <button

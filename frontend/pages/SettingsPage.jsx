@@ -1,12 +1,12 @@
-import { useState } from "react"
 import {
     Bell, MessageSquare, Shield, Check, Monitor,
     Volume2, VolumeX, Eye, EyeOff, Clock,
     Trash2, RotateCcw, Send, Moon, Sun
 } from "lucide-react"
 import useThemeStore from "../src/store/useThemeStore"
+import useSettingsStore from "../src/store/useSettingsStore"
+import toast from "react-hot-toast"
 
-// ── All DaisyUI themes with their 4 accent colours ────────────────
 const THEMES = [
     { id: "light",     label: "Light",     colors: ["#570df8","#f000b8","#00b5ff","#e5e6e6"] },
     { id: "dark",      label: "Dark",      colors: ["#661ae6","#d926aa","#1fb2a5","#1f1f1f"] },
@@ -42,7 +42,6 @@ const THEMES = [
     { id: "sunset",    label: "Sunset",    colors: ["#ff865b","#fd6f9c","#b387fa","#1a1a2e"] },
 ]
 
-// ── Section wrapper ────────────────────────────────────────────────
 const Section = ({ icon: Icon, title, description, children }) => (
     <div className="bg-base-100 rounded-2xl p-6 border border-base-200 shadow-sm">
         <div className="flex items-start gap-4 mb-6">
@@ -58,7 +57,6 @@ const Section = ({ icon: Icon, title, description, children }) => (
     </div>
 )
 
-// ── Toggle row ─────────────────────────────────────────────────────
 const ToggleRow = ({ label, description, checked, onChange, icon: Icon }) => (
     <label className="flex items-center justify-between gap-4 cursor-pointer group py-1">
         <div className="flex items-center gap-3">
@@ -77,17 +75,14 @@ const ToggleRow = ({ label, description, checked, onChange, icon: Icon }) => (
     </label>
 )
 
-// ── Main ───────────────────────────────────────────────────────────
 export default function SettingsPage() {
     const { theme, setTheme } = useThemeStore()
 
-    const [notif, setNotif] = useState({ messages: true, mentions: true, sounds: true, desktop: false })
-    const [chat, setChat]   = useState({ enterSend: true, receipts: true, typing: true, timestamps: true, compact: false })
-    const [priv, setPriv]   = useState({ online: true, lastSeen: true, photo: true })
+    const { notifications: notif, chat, privacy: priv, updateNotification, updateChat, updatePrivacy, resetAll } = useSettingsStore()
 
-    const upNotif = k => v => setNotif(p => ({ ...p, [k]: v }))
-    const upChat  = k => v => setChat(p => ({ ...p, [k]: v }))
-    const upPriv  = k => v => setPriv(p => ({ ...p, [k]: v }))
+    const upNotif = (k) => (v) => updateNotification(k, v)
+    const upChat = (k) => (v) => updateChat(k, v)
+    const upPriv = (k) => (v) => updatePrivacy(k, v)
 
     const DARK_THEMES = new Set(["dark","night","dracula","synthwave","luxury","coffee","halloween","black","dim","forest","lofi","business"])
 
@@ -95,7 +90,7 @@ export default function SettingsPage() {
         <div className="min-h-screen bg-base-200">
             <div className="max-w-3xl mx-auto px-4 py-8">
 
-                {/* ── Page header ── */}
+                {/* Page header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
                     <p className="text-base-content/50 mt-1 text-sm">Personalise your chatter-box experience.</p>
@@ -103,7 +98,7 @@ export default function SettingsPage() {
 
                 <div className="space-y-5">
 
-                    {/* ═══════════════ APPEARANCE ════════════════ */}
+                    {/* Appearance */}
                     <Section
                         icon={Sun}
                         title="Appearance"
@@ -138,7 +133,6 @@ export default function SettingsPage() {
                                         {t.label}
                                     </span>
 
-                                    {/* Active check */}
                                     {theme === t.id && (
                                         <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center shadow">
                                             <Check className="w-2.5 h-2.5 text-primary-content" strokeWidth={3} />
@@ -148,7 +142,7 @@ export default function SettingsPage() {
                             ))}
                         </div>
 
-                        {/* ── Live chat preview ── */}
+                        {/* Live chat preview */}
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-widest text-base-content/30 mb-3">
                                 Preview
@@ -171,21 +165,18 @@ export default function SettingsPage() {
 
                                 {/* Preview messages */}
                                 <div className="bg-base-100 px-4 py-4 space-y-3 min-h-36">
-                                    {/* Received */}
                                     <div className="chat chat-start">
                                         <div className="chat-bubble chat-bubble-base-300 text-sm shadow-sm">
                                             Hey! How's it going? 👋
                                         </div>
                                         <div className="chat-footer opacity-40 text-xs mt-0.5">12:00 PM</div>
                                     </div>
-                                    {/* Sent */}
                                     <div className="chat chat-end">
                                         <div className="chat-bubble chat-bubble-primary text-sm shadow-sm">
                                             I'm doing great! Just working on some new features. 🚀
                                         </div>
                                         <div className="chat-footer opacity-40 text-xs mt-0.5">12:00 PM</div>
                                     </div>
-                                    {/* Received */}
                                     <div className="chat chat-start">
                                         <div className="chat-bubble chat-bubble-base-300 text-sm shadow-sm">
                                             Looks awesome! ✨
@@ -218,7 +209,7 @@ export default function SettingsPage() {
                         </div>
                     </Section>
 
-                    {/* ═══════════════ NOTIFICATIONS ════════════════ */}
+                    {/* Notifications */}
                     <Section
                         icon={Bell}
                         title="Notifications"
@@ -235,7 +226,7 @@ export default function SettingsPage() {
                         </div>
                     </Section>
 
-                    {/* ═══════════════ CHAT PREFERENCES ════════════════ */}
+                    {/* Chat Preferences */}
                     <Section
                         icon={MessageSquare}
                         title="Chat Preferences"
@@ -254,7 +245,7 @@ export default function SettingsPage() {
                         </div>
                     </Section>
 
-                    {/* ═══════════════ PRIVACY ════════════════ */}
+                    {/* Privacy */}
                     <Section
                         icon={Shield}
                         title="Privacy & Visibility"
@@ -269,7 +260,7 @@ export default function SettingsPage() {
                         </div>
                     </Section>
 
-                    {/* ═══════════════ DANGER ZONE ════════════════ */}
+                    {/* Danger Zone */}
                     <div className="bg-base-100 rounded-2xl p-6 border border-error/20 shadow-sm">
                         <div className="flex items-start gap-4 mb-5">
                             <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center shrink-0">
@@ -289,7 +280,7 @@ export default function SettingsPage() {
                                         <p className="text-xs text-base-content/40">Restore defaults for all preferences</p>
                                     </div>
                                 </div>
-                                <button className="btn btn-sm btn-outline btn-warning">Reset</button>
+                                <button className="btn btn-sm btn-outline btn-warning" onClick={() => { if (confirm("Reset all settings to defaults?")) resetAll() }}>Reset</button>
                             </div>
                             <div className="flex items-center justify-between gap-4 p-3 rounded-xl bg-base-200">
                                 <div className="flex items-center gap-3">
@@ -299,7 +290,7 @@ export default function SettingsPage() {
                                         <p className="text-xs text-base-content/40">Delete all your messages permanently</p>
                                     </div>
                                 </div>
-                                <button className="btn btn-sm btn-outline btn-error">Clear</button>
+                                <button className="btn btn-sm btn-outline btn-error" onClick={() => toast("Clear chat history is not yet available")}>Clear</button>
                             </div>
                         </div>
                     </div>
@@ -307,7 +298,7 @@ export default function SettingsPage() {
                 </div>
 
                 <p className="text-center text-xs text-base-content/20 mt-8">
-                    chatter-box · v1.0.0 · All settings saved automatically
+                    chatter-box · v1.0.0 · Settings are saved locally
                 </p>
             </div>
         </div>

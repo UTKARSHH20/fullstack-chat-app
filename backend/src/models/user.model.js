@@ -3,32 +3,43 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true
+        required: true,
+        minLength: 2,
+        maxLength: 50,
+        trim: true,
     },
     email: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        lowercase: true,
+        trim: true,
+        match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format"],
     },
     password: {
         type: String,
-        required: true,
-        minLength: 6
+        default: null,
+    },
+    googleId: {
+        type: String,
+        default: null,
+        sparse: true,
     },
     profilePicture: {
         type: String,
-        required: false,
-        default: ""
+        default: "",
     },
     pushSubscription: {
-        type: Object,
-        default: null
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
     },
     lastSeen: {
         type: Date,
-        default: Date.now
-    }
-});
+        default: Date.now,
+    },
+}, { timestamps: true });
+
+userSchema.index({ name: "text" });
 
 const User = mongoose.model("User", userSchema);
 export default User;

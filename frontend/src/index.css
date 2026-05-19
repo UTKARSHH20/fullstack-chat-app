@@ -1,4 +1,4 @@
-/* ── Fonts must come first ──────────────────────── */
+/* Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
 
 @import "tailwindcss";
@@ -7,14 +7,14 @@
   darkTheme: night;
 }
 
-/* ── Global font ────────────────────────────────── */
+/* Global font */
 *, *::before, *::after {
   font-family: 'Outfit', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Typography scale ───────────────────────────── */
+/* Typography */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -25,7 +25,7 @@ p, span, label {
   line-height: 1.6;
 }
 
-/* ── Smooth scrollbar ───────────────────────────── */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -36,13 +36,13 @@ p, span, label {
   background: oklch(var(--bc) / 0.3);
 }
 
-/* ── Selection color ────────────────────────────── */
+/* Selection color */
 ::selection {
   background: oklch(var(--p) / 0.3);
   color: oklch(var(--pc));
 }
 
-/* ── Mobile / Touch fixes ────────────────────────── */
+/* Mobile fixes */
 html, body {
   /* Prevent the whole page from bouncing on iOS */
   overscroll-behavior: none;

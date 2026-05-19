@@ -4,6 +4,8 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./lib/db.js";
@@ -21,10 +23,19 @@ app.use(cors({
         : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     credentials: true,
 }));
-app.use(express.json({ limit: "10mb" }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
-app.use("/api/auth", authRoutes);
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { message: "Too many attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/messages", messageRoutes);
 
 if (process.env.NODE_ENV === "production") {
@@ -36,4 +47,8 @@ if (process.env.NODE_ENV === "production") {
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     connectDB();
+});
+
+process.on("unhandledRejection", (err) => {
+    console.error("Unhandled rejection:", err.message);
 });
