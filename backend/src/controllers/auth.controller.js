@@ -4,7 +4,17 @@ import User from "../models/user.model.js";
 import { generateTokenAndSetCookie } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+let googleClient;
+const getGoogleClient = () => {
+    if (!googleClient) {
+        const clientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
+        if (!clientId) {
+            console.warn("WARNING: GOOGLE_CLIENT_ID environment variable is not set!");
+        }
+        googleClient = new OAuth2Client(clientId);
+    }
+    return googleClient;
+};
 
 export async function signup(req, res) {
     const { name, email, password } = req.body;
@@ -57,9 +67,11 @@ export async function googleAuth(req, res) {
     if (!credential) return res.status(400).json({ message: "Google credential is required" });
 
     try {
-        const ticket = await googleClient.verifyIdToken({
+        const client = getGoogleClient();
+        const cleanClientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
+        const ticket = await client.verifyIdToken({
             idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: cleanClientId,
         });
         const { sub: googleId, email, name, picture } = ticket.getPayload();
 
