@@ -116,11 +116,11 @@ export function logout(req, res) {
 
 export async function updateProfile(req, res) {
     const { name } = req.body;
+    if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 50) {
+        return res.status(400).json({ message: "Name must be between 2 and 50 characters" });
+    }
     try {
-        const updates = {};
-        if (name && name.trim().length >= 2 && name.trim().length <= 50) {
-            updates.name = name.trim();
-        }
+        const updates = { name: name.trim() };
 
         const user = await User.findByIdAndUpdate(
             req.userId,
