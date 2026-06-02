@@ -140,6 +140,12 @@ export async function updateProfilePicture(req, res) {
     const { profilePicture } = req.body;
     if (!profilePicture) return res.status(400).json({ message: "No image provided" });
 
+    // Validate base64 payload size (roughly: length * 3/4) is under 5MB (5,242,880 bytes)
+    const approximateSizeBytes = (profilePicture.length * 3) / 4;
+    if (approximateSizeBytes > 5 * 1024 * 1024) {
+        return res.status(400).json({ message: "Image size exceeds the 5MB limit" });
+    }
+
     try {
         const upload = await cloudinary.uploader.upload(profilePicture);
         const user = await User.findByIdAndUpdate(
