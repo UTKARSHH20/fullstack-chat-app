@@ -94,6 +94,9 @@ export async function searchUsers(req, res) {
 export async function getMessages(req, res) {
     try {
         const { id: receiverId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+            return res.status(400).json({ message: "Invalid receiver user ID format" });
+        }
         const senderId = req.userId;
         const limit = Math.min(parseInt(req.query.limit) || 30, 100);
         const beforeId = req.query.before;
