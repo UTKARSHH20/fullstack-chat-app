@@ -139,6 +139,11 @@ export async function sendMessage(req, res) {
             return res.status(400).json({ message: "Message content cannot be empty" });
         }
 
+        const receiverExists = await User.findById(receiverId);
+        if (!receiverExists) {
+            return res.status(404).json({ message: "Receiver user not found" });
+        }
+
         let imageUrl = "";
         if (image) {
             const result = await cloudinary.uploader.upload(image);
