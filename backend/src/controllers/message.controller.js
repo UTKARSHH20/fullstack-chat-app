@@ -133,6 +133,10 @@ export async function sendMessage(req, res) {
     try {
         const { id: receiverId } = req.params;
         const senderId = req.userId;
+
+        if (senderId === receiverId) {
+            return res.status(400).json({ message: "You cannot send messages to yourself" });
+        }
         const { message, image, audio, replyTo } = req.body;
 
         if (!message?.trim() && !image && !audio) {
