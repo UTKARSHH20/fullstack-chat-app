@@ -38,7 +38,8 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                     {msg.audio && (
                         <audio src={msg.audio} controls className="max-w-full h-10 mb-1" />
                     )}
-                    {msg.message && <p className="text-sm">{msg.message}</p>}
+                    {/* GSSoC Issue #41 Fix */}
+{msg.message ? <p className="text-sm">{String(msg.message)}</p> : null}
                     
                     {msg.reactions && msg.reactions.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
