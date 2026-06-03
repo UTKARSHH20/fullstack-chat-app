@@ -31,6 +31,7 @@ export async function getUsers(req, res) {
                     from: "users",
                     localField: "_id.partnerId",
                     foreignField: "_id",
+                    pipeline: [{ $project: { password: 0 } }],
                     as: "partner",
                 },
             },
