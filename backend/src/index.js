@@ -33,6 +33,8 @@ app.use(cors({
     credentials: true,
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
+// GSSoC Issue #35 Fix
+app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
