@@ -10,9 +10,12 @@ export default function useRecording() {
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
+    // GSSoC Issue #55 Fix
+    const isCancelledRef = useRef(false);
 
     const startRecording = async () => {
         try {
+            isCancelledRef.current = false;
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
@@ -23,6 +26,10 @@ export default function useRecording() {
             };
 
             mediaRecorder.onstop = () => {
+                if (isCancelledRef.current) {
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
                 const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
                 const reader = new FileReader();
                 reader.onloadend = () => setAudioBase64(reader.result);
@@ -48,6 +55,7 @@ export default function useRecording() {
     };
 
     const cancelRecording = () => {
+        isCancelledRef.current = true;
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
         }

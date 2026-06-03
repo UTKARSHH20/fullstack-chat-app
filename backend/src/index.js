@@ -33,6 +33,8 @@ app.use(cors({
     credentials: true,
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
+// GSSoC Issue #35 Fix
+app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
@@ -62,7 +64,8 @@ if (process.env.NODE_ENV === "production") {
 }
 
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    // GSSoC Issue #45 Fix
+    console.log(`[INFO] Server successfully running on port ${PORT}`);
     connectDB();
 });
 

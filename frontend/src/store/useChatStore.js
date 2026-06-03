@@ -14,6 +14,10 @@ const useChatStore = create((set, get) => ({
     hasMore: false,
     isLoadingMore: false,
 
+    /**
+     * Fetches the list of users the current auth user has conversed with.
+     * Updates the sidebar with recent messages and unread counts.
+     */
     getUsers: async () => {
         set({ isUsersLoading: true });
         try {
@@ -26,6 +30,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Performs a global search for users by name.
+     * @param {string} query - The search string.
+     * @returns {Promise<Array>} List of matched users.
+     */
     searchUsers: async (query) => {
         try {
             const res = await axiosInstance.get(`/messages/search?q=${encodeURIComponent(query)}`);
@@ -36,6 +45,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Initializes a chat by fetching the most recent batch of messages.
+     * Sets the initial pagination `hasMore` state.
+     * @param {string} userId - The ID of the selected user.
+     */
     getMessages: async (userId) => {
         set({ isMessagesLoading: true });
         try {
@@ -51,8 +65,15 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Cursor-based pagination: Fetches older messages when the user scrolls up.
+     * Prepends the older messages to the current state array.
+     * @param {string} userId - The ID of the selected user.
+     */
     loadMoreMessages: async (userId) => {
         const { messages, isLoadingMore, hasMore } = get();
+        
+        // Prevent overlapping requests or fetching if history is exhausted
         if (isLoadingMore || !hasMore || messages.length === 0) return;
 
         set({ isLoadingMore: true });
@@ -72,6 +93,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Sends a new message with optimistic UI rendering.
+     * Falls back and removes the temporary message if the server request fails.
+     * @param {Object} messageData - Payload containing text, image, or audio.
+     */
     sendMessage: async (messageData) => {
         const { selectedUser, messages } = get();
         const { authUser } = useAuthStore.getState();
@@ -126,6 +152,10 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Deletes a message for both users.
+     * @param {string} messageId - ID of the message to delete.
+     */
     deleteMessage: async (messageId) => {
         try {
             await axiosInstance.delete(`/messages/${messageId}`);
@@ -136,6 +166,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Toggles an emoji reaction on a specific message.
+     * @param {string} messageId - Target message ID.
+     * @param {string} emoji - The emoji character to toggle.
+     */
     addReaction: async (messageId, emoji) => {
         try {
             const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
@@ -149,6 +184,10 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Marks all loaded messages from a specific sender as seen.
+     * @param {string} senderId - The ID of the user who sent the messages.
+     */
     markMessagesAsSeen: async (senderId) => {
         try {
             await axiosInstance.put("/messages/mark-seen", { senderId });
@@ -162,6 +201,10 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Binds WebSocket event listeners for real-time chat functionality.
+     * Handles incoming messages, typing indicators, read receipts, and deletions.
+     */
     subscribeToMessages: () => {
         const socket = getSocket();
         if (!socket) return;
@@ -194,9 +237,6 @@ const useChatStore = create((set, get) => ({
             }
 
             // --- Sidebar update ---
-            // Identify the "other person" in the conversation regardless of who sent it.
-            // If I sent it (from another device), the other person is the receiver.
-            // If someone else sent it to me, the other person is the sender.
             const iSentThis = msgSenderId === authUserId2;
             const otherUserId = iSentThis ? msgReceiverId : msgSenderId;
             const otherUserInSidebar = users.find((u) => u._id?.toString() === otherUserId);
@@ -215,9 +255,6 @@ const useChatStore = create((set, get) => ({
                                       senderId: message.senderId,
                                       createdAt: message.createdAt,
                                   },
-                                  // Increment unread only if:
-                                  //   - I did NOT send this message (i.e. it came from the other person)
-                                  //   - AND this is not the currently open chat
                                   unreadCount:
                                       iSentThis || state.selectedUser?._id?.toString() === otherUserId
                                           ? u.unreadCount
@@ -261,7 +298,6 @@ const useChatStore = create((set, get) => ({
         });
 
         socket.on("messagesSeen", ({ receiverId }) => {
-            // receiverId is the person who saw our messages
             set((state) => ({
                 messages: state.messages.map((msg) =>
                     msg.receiverId === receiverId ? { ...msg, status: "seen" } : msg
@@ -288,6 +324,9 @@ const useChatStore = create((set, get) => ({
         });
     },
 
+    /**
+     * Cleans up WebSocket event listeners to prevent memory leaks on unmount.
+     */
     unsubscribeFromMessages: () => {
         const socket = getSocket();
         if (socket) {
@@ -301,6 +340,11 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Searches within a specific conversation for text matches.
+     * @param {string} userId - The partner's user ID.
+     * @param {string} query - The text to search for.
+     */
     searchTextMessages: async (userId, query) => {
         try {
             const res = await axiosInstance.get(`/messages/search-text/${userId}?q=${encodeURIComponent(query)}`);
@@ -311,15 +355,22 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    /**
+     * Sets the active chat user.
+     * Crucially resets pagination state (hasMore, isLoadingMore) to prevent cross-chat scroll locking.
+     * @param {Object|null} user - The user object to select, or null to close chat.
+     */
     setSelectedUser: (user) => {
-        if (!user) return set({ selectedUser: null, messages: [] });
+        if (!user) return set({ selectedUser: null, messages: [], hasMore: false, isLoadingMore: false });
         const current = get().selectedUser;
         if (current?._id === user?._id) return;
 
-        // Clear unread count for this user when selecting them
+        // Clear unread count for this user when selecting them and reset pagination flags
         set((state) => ({
             selectedUser: user,
             messages: [],
+            hasMore: false,
+            isLoadingMore: false,
             users: state.users.map((u) =>
                 u._id === user._id ? { ...u, unreadCount: 0 } : u
             ),
@@ -327,4 +378,4 @@ const useChatStore = create((set, get) => ({
     },
 }));
 
-export default useChatStore;
+export default useChatStore;

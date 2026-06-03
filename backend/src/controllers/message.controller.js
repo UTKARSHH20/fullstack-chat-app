@@ -30,6 +30,7 @@ const sanitizeSearchQuery = (query, maxLength = 100) => {
 // ── GET /messages/users ──────────────────────────────────────────
 /**
  * Retrieves a list of users the current user has conversed with.
+ * Includes the latest message snippet and unread message counts.
  * PERFORMANCE OPTIMIZED: Uses $project to strip massive fields and only return essential UI data.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
@@ -55,6 +56,7 @@ export async function getUsers(req, res) {
                     from: "users",
                     localField: "_id.partnerId",
                     foreignField: "_id",
+                    pipeline: [{ $project: { password: 0 } }],
                     as: "partner",
                 },
             },
@@ -105,6 +107,7 @@ export async function getUsers(req, res) {
 // ── GET /messages/search?q= ──────────────────────────────────────
 /**
  * Searches across the global user base by name.
+ * Hardened against ReDoS and oversized payload attacks.
  * PERFORMANCE OPTIMIZED: Explicitly uses .select() to retrieve only UI-critical fields.
  * @param {Object} req - Express request object containing `q` query.
  * @param {Object} res - Express response object.
@@ -113,6 +116,7 @@ export async function searchUsers(req, res) {
     try {
         const safeQuery = sanitizeSearchQuery(req.query.q);
         
+        // Return empty array if query is missing, empty, invalid type, or too long
         if (!safeQuery) return res.status(200).json([]);
 
         // OPTIMIZATION: explicitly pull only necessary public fields
@@ -183,6 +187,10 @@ export async function getMessages(req, res) {
 export async function sendMessage(req, res) {
     try {
         const { id: receiverId } = req.params;
+        // GSSoC Issue #57 Fix
+        if (!receiverId) {
+            return res.status(400).json({ message: "Receiver ID is required" });
+        }
         const senderId = req.userId;
 
         if (senderId === receiverId) {
@@ -314,7 +322,7 @@ export async function markMessagesAsSeen(req, res) {
 }
 
 /**
- * Toggles an emoji reaction on a specific message.
+ * Toggles a user's emoji reaction on a specific message.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
@@ -334,6 +342,7 @@ export async function reactToMessage(req, res) {
         if (existingReactionIndex > -1) {
             message.reactions.splice(existingReactionIndex, 1);
         } else {
+            // Add new reaction
             message.reactions.push({ emoji, userId });
         }
 
@@ -355,6 +364,7 @@ export async function reactToMessage(req, res) {
 
 /**
  * Searches specific conversation history for message content.
+ * Hardened against ReDoS and oversized payload attacks.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
@@ -366,6 +376,8 @@ export async function searchTextMessages(req, res) {
         }
 
         const safeQuery = sanitizeSearchQuery(req.query.q);
+        
+        // Return empty array if query is missing, empty, invalid type, or too long
         if (!safeQuery) return res.status(200).json([]);
 
         const senderId = req.userId;
