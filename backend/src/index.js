@@ -62,7 +62,8 @@ if (process.env.NODE_ENV === "production") {
 }
 
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    // GSSoC Issue #45 Fix
+    console.log(`[INFO] Server successfully running on port ${PORT}`);
     connectDB();
 });
 
