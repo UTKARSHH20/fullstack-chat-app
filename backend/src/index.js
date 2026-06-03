@@ -33,7 +33,8 @@ app.use(cors({
     credentials: true,
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json({ limit: "5mb" }));
+// GSSoC Issue #37 Fix
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({
