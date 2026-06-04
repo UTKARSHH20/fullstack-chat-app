@@ -15,6 +15,7 @@ import { app, server } from "./lib/socket.js";
 
 const PORT = process.env.PORT || 5001;
 
+// Guard clauses ensuring mandatory configuration tokens are present at boot
 const REQUIRED_ENV_VARS = ["MONGODB_URL", "JWT_SECRETKEY"];
 for (const envVar of REQUIRED_ENV_VARS) {
     if (!process.env[envVar]) {
@@ -26,6 +27,7 @@ for (const envVar of REQUIRED_ENV_VARS) {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Security Middleware Layer
 app.use(cors({
     origin: process.env.NODE_ENV === "production"
         ? true
@@ -38,6 +40,7 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
+// Rate Limiting Policy Declarations
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -54,26 +57,63 @@ const messageLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Primary Endpoint Route Mappings
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/messages", messageLimiter, messageRoutes);
 
+/**
+ * CENTRALIZED EXPRESS ERROR HANDLING MIDDLEWARE
+ * Intercepts all unhandled route exceptions.
+ * HARDENING FIX: Sanitizes stack traces in production to prevent information disclosure vulnerabilities.
+ */
+app.use((err, req, res, next) => {
+    // Log the full diagnostic stack internally on the server console for debugging
+    console.error("Centralized Route Error Intercepted:", err.stack || err);
+
+    const statusCode = err.status || err.statusCode || 500;
+    
+    // Evaluate execution scope to mask internal error details from HTTP clients in production
+    if (process.env.NODE_ENV === "production") {
+        return res.status(statusCode).json({
+            message: "An internal server error occurred.",
+            statusCode
+        });
+    }
+
+    // Deliver complete stack information only during local development testing cycles
+    return res.status(statusCode).json({
+        message: err.message || "Internal Server Error",
+        error: err.toString(),
+        stack: err.stack,
+        statusCode
+    });
+});
+
+// SPA Asset Distribution Handlers (Production Target Static Serves)
 if (process.env.NODE_ENV === "production") {
     const frontendDist = path.join(__dirname, "../../frontend/dist");
     app.use(express.static(frontendDist));
     app.use((req, res) => res.sendFile(path.join(frontendDist, "index.html")));
 }
 
+// System Boot
 server.listen(PORT, () => {
     // GSSoC Issue #45 Fix
     console.log(`[INFO] Server successfully running on port ${PORT}`);
     connectDB();
 });
 
+// Global Process Exception Listeners Hardened Against Leak Vectors
 process.on("unhandledRejection", (err) => {
-    console.error("Unhandled rejection:", err.message);
+    console.error("Unhandled Rejection Hook Catch:", err?.message || err);
 });
 
 process.on("uncaughtException", (err) => {
-    console.error("Uncaught exception:", err);
+    // Conditionally isolate stack traces from log dumps based on active environments
+    if (process.env.NODE_ENV === "production") {
+        console.error("Fatal Uncaught Exception Triggered: Process Terminating. Context:", err?.message || "Internal Error");
+    } else {
+        console.error("Uncaught exception stack trace details:", err);
+    }
     process.exit(1);
 });
