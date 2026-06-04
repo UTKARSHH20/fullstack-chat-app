@@ -6,11 +6,10 @@ const SOCKET_URL = import.meta.env.MODE === "development"
 
 let socket = null;
 
-export const connectSocket = (userId) => {
+export const connectSocket = () => {
     if (socket?.connected) return socket;
 
     socket = io(SOCKET_URL, {
-        query: { userId },
         withCredentials: true,
     });
 

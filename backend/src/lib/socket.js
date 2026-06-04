@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import jwt from "jsonwebtoken";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 
@@ -18,12 +19,30 @@ const io = new Server(server, {
     },
 });
 
+// Authenticate WebSocket connections via JWT from handshake cookie
+io.use((socket, next) => {
+    const cookieHeader = socket.handshake.headers.cookie;
+    if (!cookieHeader) return next(new Error("Authentication required"));
+
+    const match = cookieHeader.match(/(?:^|;\s*)jwt=([^;]+)/);
+    const token = match ? match[1] : null;
+    if (!token) return next(new Error("Authentication required"));
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRETKEY);
+        socket.userId = decoded.userId;
+        next();
+    } catch {
+        next(new Error("Invalid or expired token"));
+    }
+});
+
 const userSocketMap = {};
 
 export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
 
 io.on("connection", (socket) => {
-    const userId = socket.handshake.query.userId;
+    const userId = socket.userId;
 
     if (userId) {
         if (!userSocketMap[userId]) userSocketMap[userId] = [];
