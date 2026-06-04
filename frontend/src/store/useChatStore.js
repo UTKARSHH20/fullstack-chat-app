@@ -197,7 +197,7 @@ const useChatStore = create((set, get) => ({
                 ),
             }));
         } catch (error) {
-            console.log("Failed to mark messages as seen", error);
+            console.error("Failed to mark messages as seen", error);
         }
     },
 
