@@ -5,11 +5,17 @@ import { getSocket } from "../lib/socket";
 export default function useTypingIndicator(receiverId) {
     const timeoutRef = useRef(null);
 
+    // GSSoC Issue #51 Fix
+    const lastEmitRef = useRef(0);
     const emitTyping = () => {
         const socket = getSocket();
         if (!socket || !receiverId) return;
 
-        socket.emit("typing", { receiverId });
+        const now = Date.now();
+        if (now - lastEmitRef.current > 1000) {
+            socket.emit("typing", { receiverId });
+            lastEmitRef.current = now;
+        }
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             socket.emit("stopTyping", { receiverId });

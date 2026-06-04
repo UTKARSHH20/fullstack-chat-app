@@ -137,6 +137,10 @@ export async function updateProfile(req, res) {
 }
 
 export async function updateProfilePicture(req, res) {
+    // GSSoC Issue #47 Fix
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized: Invalid user session ID" });
+    }
     const { profilePicture } = req.body;
     if (!profilePicture) return res.status(400).json({ message: "No image provided" });
 

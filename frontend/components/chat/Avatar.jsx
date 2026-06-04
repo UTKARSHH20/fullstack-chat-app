@@ -4,7 +4,7 @@ const Avatar = ({ user, size = "md", isOnline = false }) => {
     return (
         <div className="relative shrink-0">
             {user?.profilePicture
-                ? <img src={user.profilePicture} alt={user.name} className={`${sz} rounded-full object-cover`} />
+                ? <img src={user.profilePicture} alt={`${user.name || 'User'}'s profile picture`} className={`${sz} rounded-full object-cover`} /> {/* GSSoC Issue #43 Fix */}
                 : <div className={`${sz} rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary`}>
                     {user?.name?.charAt(0).toUpperCase() || "?"}
                   </div>

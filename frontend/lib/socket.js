@@ -22,6 +22,11 @@ export const connectSocket = (userId) => {
         console.warn("[socket] connection error:", err.message);
     });
 
+    // GSSoC Issue #59 Fix
+    socket.on("disconnect", (reason) => {
+        console.warn("[socket] disconnected due to:", reason);
+    });
+
     return socket;
 };
 

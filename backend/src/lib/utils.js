@@ -6,7 +6,7 @@ export const generateTokenAndSetCookie = (userId, res) => {
         maxAge: 15 * 24 * 60 * 60 * 1000,
         httpOnly: true,
         sameSite: "strict",
-        secure: process.env.NODE_ENV !== "development"
+        secure: process.env.NODE_ENV !== "development" || process.env.FORCE_SECURE_COOKIES === "true" // GSSoC Issue #49 Fix
     });
     return token;
 }   

@@ -18,6 +18,8 @@ export default function useRecording() {
     
     // Added flag to prevent ghost-saving audio when explicitly canceled or abandoned
     const isCanceledRef = useRef(false);
+    // GSSoC Issue #55 Fix
+    const isCancelledRef = useRef(false);
 
     /**
      * Cleans up all active media tracks to release hardware microphone access.
@@ -42,6 +44,7 @@ export default function useRecording() {
             audioChunksRef.current = [];
             setAudioBase64(null);
 
+            isCancelledRef.current = false;
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
@@ -60,6 +63,15 @@ export default function useRecording() {
                 }
                 // Always ensure hardware tracks are released when recording halts
                 stopMediaTracks();
+                if (isCancelledRef.current) {
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                const reader = new FileReader();
+                reader.onloadend = () => setAudioBase64(reader.result);
+                reader.readAsDataURL(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
             };
 
             mediaRecorder.start();
@@ -95,6 +107,8 @@ export default function useRecording() {
      */
     const cancelRecording = useCallback(() => {
         isCanceledRef.current = true; // Prevents the onstop event from saving the file
+    const cancelRecording = () => {
+        isCancelledRef.current = true;
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
         }
