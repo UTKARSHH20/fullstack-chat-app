@@ -15,6 +15,22 @@ import webpush from "../lib/webpush.js";
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
+ * Extracts the public ID from a Cloudinary secure URL.
+ * @param {string} url - The Cloudinary file URL.
+ * @returns {string|null} - The public ID or null.
+ */
+const extractPublicId = (url) => {
+    if (!url) return null;
+    try {
+        const parts = url.split("/");
+        const filename = parts.pop();
+        return filename.split(".")[0];
+    } catch {
+        return null;
+    }
+};
+
+/**
  * Validates and cleans search queries to protect against malicious input patterns.
  * @param {any} query - The raw query from the request.
  * @param {number} maxLength - Maximum allowed characters.
@@ -315,6 +331,19 @@ export async function deleteMessage(req, res) {
         if (!message) return res.status(404).json({ message: "Message not found" });
         if (message.senderId.toString() !== senderId)
             return res.status(403).json({ message: "You can only delete your own messages" });
+
+        if (message.image) {
+            const publicId = extractPublicId(message.image);
+            if (publicId) {
+                await cloudinary.uploader.destroy(publicId).catch(err => console.error("Cloudinary image delete failed:", err));
+            }
+        }
+        if (message.audio) {
+            const publicId = extractPublicId(message.audio);
+            if (publicId) {
+                await cloudinary.uploader.destroy(publicId, { resource_type: "video" }).catch(err => console.error("Cloudinary audio delete failed:", err));
+            }
+        }
 
         await Message.findByIdAndDelete(id);
 
