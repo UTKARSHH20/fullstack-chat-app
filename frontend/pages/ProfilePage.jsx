@@ -15,6 +15,14 @@ export default function ProfilePage() {
     const handleFileChange = (e) => {
         const file = e.target.files[0]
         if (file) {
+            if (!file.type.startsWith("image/")) {
+                toast.error("Please select a valid image file")
+                return
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error("Image size must be less than 5MB")
+                return
+            }
             setSelectedFile(file)
             setPreviewImage(URL.createObjectURL(file))
         }
