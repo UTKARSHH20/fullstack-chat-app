@@ -30,6 +30,9 @@ const getGoogleClient = () => {
  */
 export async function signup(req, res) {
     const { name, email, password } = req.body;
+    if (!name || typeof name !== "string" || !email || typeof email !== "string" || !password || typeof password !== "string") {
+        return res.status(400).json({ message: "Invalid input format" });
+    }
     try {
         const existing = await User.findOne({ email });
         if (existing) {
@@ -69,6 +72,9 @@ export async function signup(req, res) {
  */
 export async function login(req, res) {
     const { email, password } = req.body;
+    if (!email || typeof email !== "string" || !password || typeof password !== "string") {
+        return res.status(400).json({ message: "Invalid input format" });
+    }
     try {
         const user = await User.findOne({ email: email.toLowerCase().trim() });
         if (!user || !user.password) {
