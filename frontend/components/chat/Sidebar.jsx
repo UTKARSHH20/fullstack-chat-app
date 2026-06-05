@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Search, PenSquare } from "lucide-react"
+import { Search, PenSquare, Palette } from "lucide-react"
 import useChatStore from "../../src/store/useChatStore"
 import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
@@ -115,7 +115,16 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                 <Avatar user={user} isOnline={isOnline} />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
-                                        <p className="font-medium text-sm truncate">{user.name}</p>
+                                        <div className="flex items-center gap-1 min-w-0">
+    <p className="font-medium text-sm truncate">
+        {user.name}
+    </p>
+
+    <Palette
+        className="w-3 h-3 text-primary shrink-0"
+        title="Chat personalization available"
+    />
+</div>
                                         {lm?.createdAt && (
                                             <span className="text-[10px] text-base-content/40 shrink-0 ml-2">
                                                 {formatTime(lm.createdAt)}
