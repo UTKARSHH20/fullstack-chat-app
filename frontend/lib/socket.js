@@ -30,7 +30,7 @@ export const connectSocket = () => {
 };
 
 export const disconnectSocket = () => {
-    if (socket?.connected) {
+    if (socket) {
         socket.disconnect();
         socket = null;
         console.log("[socket] disconnected");
