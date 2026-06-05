@@ -268,10 +268,18 @@ export async function subscribeToPush(req, res) {
     try {
         const { subscription } = req.body;
         
+        if (subscription !== null) {
+            if (!subscription || typeof subscription !== "object" || 
+                !subscription.endpoint || !subscription.keys || 
+                !subscription.keys.p256dh || !subscription.keys.auth) {
+                return res.status(400).json({ message: "Invalid push subscription payload structure" });
+            }
+        }
+        
         // HARDENING FIX: Explicitly strip credentials and metadata parameters from returning mutations
         await User.findByIdAndUpdate(req.userId, { 
             pushSubscription: subscription 
-        }).select("-password -__v");
+        }, { runValidators: true }).select("-password -__v");
         
         res.status(200).json({ message: "Push subscription saved" });
     } catch (err) {

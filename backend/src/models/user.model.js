@@ -30,7 +30,14 @@ const userSchema = new mongoose.Schema({
         default: "",
     },
     pushSubscription: {
-        type: mongoose.Schema.Types.Mixed,
+        type: new mongoose.Schema({
+            endpoint: { type: String, required: true, trim: true },
+            expirationTime: { type: Date, default: null },
+            keys: {
+                p256dh: { type: String, required: true, trim: true },
+                auth: { type: String, required: true, trim: true }
+            }
+        }, { _id: false }),
         default: null,
     },
     lastSeen: {
