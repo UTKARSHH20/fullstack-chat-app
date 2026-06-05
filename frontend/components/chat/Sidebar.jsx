@@ -141,13 +141,25 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                     </div>
                                     <div className="flex items-center justify-between">
                                         {typingUsers.includes(user._id) ? (
-                                            <p className="text-xs text-success font-bold animate-pulse truncate">typing...</p>
+                                            <div className="flex items-center gap-1">
+    <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+    <p className="text-xs text-success font-bold truncate">
+        typing...
+    </p>
+</div>
                                         ) : preview ? (
                                             <p className="text-xs text-base-content/50 truncate">{preview}</p>
                                         ) : (
-                                            <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
-                                                {isOnline ? "Online" : "Offline"}
-                                            </p>
+                                            <div className="flex items-center gap-1">
+    <span
+        className={`w-2 h-2 rounded-full ${
+            isOnline ? "bg-success" : "bg-base-300"
+        }`}
+    />
+    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+        {isOnline ? "Active now" : "Offline"}
+    </p>
+</div>
                                         )}
                                         {user.unreadCount > 0 && (
                                             <span className="badge badge-primary badge-xs ml-1 shrink-0">
