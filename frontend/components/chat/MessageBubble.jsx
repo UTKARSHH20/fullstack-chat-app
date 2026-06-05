@@ -1,4 +1,4 @@
-import { Check, CheckCheck } from "lucide-react"
+import { Check, CheckCheck, Pin } from "lucide-react"
 import Avatar from "./Avatar"
 import ReplyPreview from "./ReplyPreview"
 
@@ -27,6 +27,12 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                     onTouchEnd={onTouchEnd}
                     onTouchMove={onTouchEnd}
                 >
+                    {msg.isPinned && (
+    <div className="flex items-center gap-1 text-warning text-xs mb-1">
+        <Pin className="w-3 h-3" />
+        <span>Pinned Message</span>
+    </div>
+)}
                     {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
                     {msg.image && (
                         <img
