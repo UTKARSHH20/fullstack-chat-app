@@ -151,6 +151,10 @@ const useCallStore = create((set, get) => ({
             get().clearCall();
             toast.error("Call declined");
         });
+
+        socket.on("callCanceled", () => {
+            get().clearCall();
+        });
     },
 
     /**
@@ -162,6 +166,7 @@ const useCallStore = create((set, get) => ({
             socket.off("incomingCall");
             socket.off("callEnded");
             socket.off("callRejected");
+            socket.off("callCanceled");
         }
     }
 }));
