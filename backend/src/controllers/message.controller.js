@@ -59,6 +59,34 @@ const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 1024) => {
     return { isValid: true };
 };
 
+/**
+ * SECURITY GATEWAY: Validates incoming Base64 audio payload signatures and data footprints.
+ * @param {string} base64Str - The raw Base64 data URL string from the client.
+ * @param {number} maxSizeBytes - Maximum permissible binary footprint (default 10MB).
+ * @returns {Object} Validation status descriptor containing { isValid: boolean, error?: string }
+ */
+const validateAudioAttachment = (base64Str, maxSizeBytes = 10 * 1024 * 1024) => {
+    const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+        return { isValid: false, error: "Invalid audio format structure or corrupt payload." };
+    }
+
+    const mimeType = match[1];
+    const rawData = match[2];
+
+    const ALLOWED_MIME_TYPES = ["audio/webm", "audio/mp3", "audio/wav", "audio/mpeg", "audio/ogg", "audio/x-m4a", "audio/m4a"];
+    if (!ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
+        return { isValid: false, error: "Unsupported audio format. Allowed formats: WEBM, MP3, WAV, OGG, M4A." };
+    }
+
+    const binarySizeEstimate = Math.floor((rawData.length * 3) / 4) - (rawData.endsWith("==") ? 2 : rawData.endsWith("=") ? 1 : 0);
+    if (binarySizeEstimate > maxSizeBytes) {
+        return { isValid: false, error: "Audio size exceeds the 10MB limit." };
+    }
+
+    return { isValid: true };
+};
+
 // ── GET /messages/users ──────────────────────────────────────────
 /**
  * Retrieves a list of users the current user has conversed with.
@@ -253,6 +281,10 @@ export async function sendMessage(req, res) {
 
         let audioUrl = "";
         if (audio) {
+            const validation = validateAudioAttachment(audio);
+            if (!validation.isValid) {
+                return res.status(400).json({ message: validation.error });
+            }
             const result = await cloudinary.uploader.upload(audio, { resource_type: "auto" });
             audioUrl = result.secure_url;
         }
