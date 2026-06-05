@@ -101,13 +101,8 @@ export default function useRecording() {
         }
     }, [isRecording]);
 
-    /**
-     * Aborts the recording, discards the audio chunks, and immediately
-     * releases hardware tracks without saving to Base64 state.
-     */
     const cancelRecording = useCallback(() => {
-        isCanceledRef.current = true; // Prevents the onstop event from saving the file
-    const cancelRecording = () => {
+        isCanceledRef.current = true;
         isCancelledRef.current = true;
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
