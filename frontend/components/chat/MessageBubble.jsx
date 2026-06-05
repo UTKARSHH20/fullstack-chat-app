@@ -46,6 +46,12 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                     )}
                     {/* GSSoC Issue #41 Fix */}
 {msg.message ? <p className="text-sm">{String(msg.message)}</p> : null}
+
+{msg.reactions && msg.reactions.length >= 3 && (
+    <div className="text-[10px] text-warning font-semibold mb-1">
+        🔥 Highly Reacted Message ({msg.reactions.length} reactions)
+    </div>
+)}
                     
                     {msg.reactions && msg.reactions.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
