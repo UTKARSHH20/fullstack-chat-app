@@ -187,7 +187,17 @@ const activeChats = onlineUsers.length
                                         : "border-l-2 border-transparent"}
                                 `}
                             >
-                                <Avatar user={user} isOnline={isOnline} />
+                                <div
+    title={
+        isOnline
+            ? "Currently Online"
+            : user.lastSeen
+            ? `Last active: ${formatTime(user.lastSeen)}`
+            : "Offline"
+    }
+>
+    <Avatar user={user} isOnline={isOnline} />
+</div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1 min-w-0">
@@ -238,11 +248,13 @@ const activeChats = onlineUsers.length
                     isOnline ? "bg-success" : "bg-base-300"
                 }`}
             />
-            <p className={`text-xs ${
-                isOnline ? "text-success" : "text-base-content/40"
-            }`}>
-                {isOnline ? "Active now" : "Offline"}
-            </p>
+            <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+    {isOnline
+        ? "Active now"
+        : user.lastSeen
+        ? `Last active ${formatTime(user.lastSeen)}`
+        : "Offline"}
+</p>
         </div>
     )}
 
