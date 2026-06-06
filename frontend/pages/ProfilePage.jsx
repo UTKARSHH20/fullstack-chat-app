@@ -59,7 +59,7 @@ export default function ProfilePage() {
             <div className="bg-base-100 rounded-2xl shadow-xl overflow-hidden w-full max-w-3xl">
                 <div className="relative h-40 bg-gradient-to-r from-primary to-secondary">
                     <div className="absolute inset-0 flex items-end px-8 pb-4">
-                        <div className="avatar -mb-16 border-4 border-base-100 rounded-full shadow-lg">
+                        <div className="avatar -mb-10 border-4 border-base-100 rounded-full shadow-lg">
                             <div className="w-32 rounded-full bg-base-300 relative">
                                 {previewImage ? (
                                     <img
