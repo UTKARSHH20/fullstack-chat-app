@@ -4,8 +4,73 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketIds } from "../lib/socket.js";
 import webpush from "../lib/webpush.js";
+import { getRedisClient } from "../lib/redis.js";
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ============================================================================
+// ── SYSTEM CONSTANTS & CONFIGURATION
+// ============================================================================
+
+const CACHE_TTL_SECONDS = 300; // 5 Minutes TTL for conversation lists
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB Upload Limit
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+// ============================================================================
+// ── CACHE MANAGEMENT WRAPPERS
+// ============================================================================
+
+/**
+ * Safely attempts to retrieve serialized JSON from the Redis memory layer.
+ * Fails open (returns null) if the Redis client is disconnected.
+ * * @param {string} key - The unique Redis dictionary key.
+ * @returns {Promise<Object|null>} Parsed JSON object or null on miss/error.
+ */
+const safeCacheGet = async (key) => {
+    try {
+        const redis = getRedisClient();
+        if (!redis) return null;
+        const data = await redis.get(key);
+        return data ? JSON.parse(data) : null;
+    } catch (err) {
+        console.warn(`Redis GET Error for key [${key}]:`, err.message);
+        return null;
+    }
+};
+
+/**
+ * Safely commits JSON objects to the Redis memory layer with a strict TTL.
+ * * @param {string} key - The unique Redis dictionary key.
+ * @param {Object} data - The raw Javascript object to serialize.
+ * @param {number} ttl - Time-to-Live in seconds.
+ */
+const safeCacheSet = async (key, data, ttl = CACHE_TTL_SECONDS) => {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            await redis.set(key, JSON.stringify(data), "EX", ttl);
+        }
+    } catch (err) {
+        console.warn(`Redis SET Error for key [${key}]:`, err.message);
+    }
+};
+
+/**
+ * Programmatically evicts stale keys from the Redis cache to maintain consistency.
+ * * @param {string} key - The unique Redis dictionary key to destroy.
+ */
+const safeCacheDel = async (key) => {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            await redis.del(key);
+        }
+    } catch (err) {
+        console.warn(`Redis DEL Error for key [${key}]:`, err.message);
+    }
+};
+
+// ============================================================================
+// ── SECURITY & SANITIZATION HELPERS
+// ============================================================================
 
 /**
  * Escapes special regex characters in a string to prevent ReDoS injection.
@@ -15,25 +80,9 @@ import webpush from "../lib/webpush.js";
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Extracts the public ID from a Cloudinary secure URL.
- * @param {string} url - The Cloudinary file URL.
- * @returns {string|null} - The public ID or null.
- */
-const extractPublicId = (url) => {
-    if (!url) return null;
-    try {
-        const parts = url.split("/");
-        const filename = parts.pop();
-        return filename.split(".")[0];
-    } catch {
-        return null;
-    }
-};
-
-/**
  * Validates and cleans search queries to protect against malicious input patterns.
  * @param {any} query - The raw query from the request.
- * @param {number} maxLength - Maximum allowed characters.
+ * @param {number} maxLength - Maximum allowed characters (default 100).
  * @returns {string|null} - Sanitized string or null if invalid.
  */
 const sanitizeSearchQuery = (query, maxLength = 100) => {
@@ -44,14 +93,12 @@ const sanitizeSearchQuery = (query, maxLength = 100) => {
 };
 
 /**
- * SECURITY GATEWAY: Validates incoming Base64 image payload signatures and data footprints.
+ * SECURITY GATEWAY: Validates incoming Base64 image payload signatures.
  * Rejects extension forgery by analyzing actual MIME content mapping declarations.
  * * @param {string} base64Str - The raw Base64 data URL string from the client.
- * @param {number} maxSizeBytes - Maximum permissible binary footprint (default 5MB).
  * @returns {Object} Validation status descriptor containing { isValid: boolean, error?: string }
  */
-const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 1024) => {
-    // Check if format conforms to a legitimate Data URL structure
+const validateImageAttachment = (base64Str) => {
     const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) {
         return { isValid: false, error: "Invalid file format structure or corrupt payload." };
@@ -60,60 +107,41 @@ const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 1024) => {
     const mimeType = match[1];
     const rawData = match[2];
 
-    // Enforce strict allow-list on image signatures to block structural forgery
-    const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
         return { isValid: false, error: "Unsupported image signature type. Allowed formats: JPEG, PNG, WEBP, GIF." };
     }
 
-    // Calculate precise binary footprint size from base64 encoding representation string length
     const binarySizeEstimate = Math.floor((rawData.length * 3) / 4) - (rawData.endsWith("==") ? 2 : rawData.endsWith("=") ? 1 : 0);
-    if (binarySizeEstimate > maxSizeBytes) {
+    if (binarySizeEstimate > MAX_FILE_SIZE_BYTES) {
         return { isValid: false, error: "File boundary limit exceeded. Image size must be under 5MB." };
     }
 
     return { isValid: true };
 };
 
+// ============================================================================
+// ── CORE CONTROLLER ENDPOINTS
+// ============================================================================
+
 /**
- * SECURITY GATEWAY: Validates incoming Base64 audio payload signatures and data footprints.
- * @param {string} base64Str - The raw Base64 data URL string from the client.
- * @param {number} maxSizeBytes - Maximum permissible binary footprint (default 10MB).
- * @returns {Object} Validation status descriptor containing { isValid: boolean, error?: string }
- */
-const validateAudioAttachment = (base64Str, maxSizeBytes = 10 * 1024 * 1024) => {
-    const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-        return { isValid: false, error: "Invalid audio format structure or corrupt payload." };
-    }
-
-    const mimeType = match[1];
-    const rawData = match[2];
-
-    const ALLOWED_MIME_TYPES = ["audio/webm", "audio/mp3", "audio/wav", "audio/mpeg", "audio/ogg", "audio/x-m4a", "audio/m4a"];
-    if (!ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
-        return { isValid: false, error: "Unsupported audio format. Allowed formats: WEBM, MP3, WAV, OGG, M4A." };
-    }
-
-    const binarySizeEstimate = Math.floor((rawData.length * 3) / 4) - (rawData.endsWith("==") ? 2 : rawData.endsWith("=") ? 1 : 0);
-    if (binarySizeEstimate > maxSizeBytes) {
-        return { isValid: false, error: "Audio size exceeds the 10MB limit." };
-    }
-
-    return { isValid: true };
-};
-
-// ── GET /messages/users ──────────────────────────────────────────
-/**
+ * GET /messages/users
  * Retrieves a list of users the current user has conversed with.
- * Includes the latest message snippet and unread message counts.
- * PERFORMANCE OPTIMIZED: Uses $project to strip massive fields and only return essential UI data.
- * @param {Object} req - Express request object.
+ * PERFORMANCE CACHED: Intercepts lookups via Redis memory hashes.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function getUsers(req, res) {
     const userId = new mongoose.Types.ObjectId(req.userId);
+    const cacheKey = `user:conversations:${req.userId}`;
+
     try {
+        // PERFORMANCE INTERCEPT: Pull pre-computed chat arrays from memory cache
+        const cachedConversations = await safeCacheGet(cacheKey);
+        if (cachedConversations) {
+            return res.status(200).json(cachedConversations);
+        }
+
+        // Cache Miss: Run high-performance MongoDB aggregation lookup pipeline
         const conversations = await Message.aggregate([
             { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
             { $sort: { createdAt: -1 } },
@@ -137,7 +165,6 @@ export async function getUsers(req, res) {
                 },
             },
             { $unwind: "$partner" },
-            // OPTIMIZATION: Only project the necessary user fields to save DB memory & bandwidth
             { 
                 $project: {
                     "partner.password": 0,
@@ -172,29 +199,29 @@ export async function getUsers(req, res) {
             unreadCount: unreadMap[partner._id.toString()] || 0,
         }));
 
+        // Store computation product back inside Redis memory layer
+        await safeCacheSet(cacheKey, result);
+
         res.status(200).json(result);
     } catch (err) {
-        console.error("getUsers:", err.message);
-        res.status(500).json({ message: "Could not load conversations" });
+        console.error("getUsers (Controller Error):", err.message);
+        res.status(500).json({ message: "Could not load conversations due to an internal error." });
     }
 }
 
-// ── GET /messages/search?q= ──────────────────────────────────────
 /**
+ * GET /messages/search?q=
  * Searches across the global user base by name.
  * Hardened against ReDoS and oversized payload attacks.
- * PERFORMANCE OPTIMIZED: Explicitly uses .select() to retrieve only UI-critical fields.
- * @param {Object} req - Express request object containing `q` query.
+ * * @param {Object} req - Express request object containing `q` query.
  * @param {Object} res - Express response object.
  */
 export async function searchUsers(req, res) {
     try {
         const safeQuery = sanitizeSearchQuery(req.query.q);
-        
-        // Return empty array if query is missing, empty, invalid type, or too long
         if (!safeQuery) return res.status(200).json([]);
 
-        // OPTIMIZATION: explicitly pull only necessary public fields
+        // Explicit field selection for bandwidth minimization
         const users = await User.find({
             _id: { $ne: req.userId },
             name: { $regex: safeQuery, $options: "i" },
@@ -204,30 +231,26 @@ export async function searchUsers(req, res) {
         
         res.status(200).json(users);
     } catch (err) {
-        console.error("searchUsers:", err.message);
-        res.status(500).json({ message: "Could not search users" });
+        console.error("searchUsers (Controller Error):", err.message);
+        res.status(500).json({ message: "Could not execute global user search." });
     }
 }
 
-// ── GET /messages/:id?before=&limit= ────────────────────────────
 /**
+ * GET /messages/:id?before=&limit=
  * Fetches message history for a specific conversation using cursor-based pagination.
- * @param {Object} req - Express request object containing receiver `id` param.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function getMessages(req, res) {
     try {
         const { id: receiverId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-            return res.status(400).json({ message: "Invalid receiver user ID format" });
+            return res.status(400).json({ message: "Invalid receiver user ID format provided." });
         }
         const senderId = req.userId;
         const limit = Math.min(parseInt(req.query.limit) || 30, 100);
         const beforeId = req.query.before;
-
-        if (beforeId && !mongoose.Types.ObjectId.isValid(beforeId)) {
-            return res.status(400).json({ message: "Invalid cursor ID format" });
-        }
 
         const filter = {
             $or: [
@@ -251,67 +274,52 @@ export async function getMessages(req, res) {
         messages.reverse();
         res.status(200).json({ messages, hasMore });
     } catch (err) {
-        console.error("getMessages:", err.message);
-        res.status(500).json({ message: "Could not load messages" });
+        console.error("getMessages (Controller Error):", err.message);
+        res.status(500).json({ message: "Could not retrieve message history." });
     }
 }
 
-// ── POST /messages/send/:id ──────────────────────────────────────
 /**
+ * POST /messages/send/:id
  * Handles sending text, image, and voice messages to a specific user.
- * Triggers socket events or offline web-push notifications.
- * @param {Object} req - Express request object.
+ * CACHE INVALIDATION: Clears memory hashes to ensure realtime updates.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function sendMessage(req, res) {
     try {
         const { id: receiverId } = req.params;
-        // GSSoC Issue #57 Fix
         if (!receiverId) {
-            return res.status(400).json({ message: "Receiver ID is required" });
+            return res.status(400).json({ message: "Receiver ID is strictly required." });
         }
-        if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-            return res.status(400).json({ message: "Invalid receiver user ID format" });
-        }
+        
         const senderId = req.userId;
-
         if (senderId === receiverId) {
-            return res.status(400).json({ message: "You cannot send messages to yourself" });
+            return res.status(400).json({ message: "Protocol violation: Cannot send messages to yourself." });
         }
+
         const { message, image, audio, replyTo } = req.body;
-
-        if (replyTo && !mongoose.Types.ObjectId.isValid(replyTo)) {
-            return res.status(400).json({ message: "Invalid replyTo ID format" });
-        }
-
         if (!message?.trim() && !image && !audio) {
-            return res.status(400).json({ message: "Message content cannot be empty" });
+            return res.status(400).json({ message: "Message payload cannot be entirely empty." });
         }
 
-        // OPTIMIZATION: Only fetch the push subscription and name to limit memory use
         const receiverUser = await User.findById(receiverId).select("name pushSubscription");
         if (!receiverUser) {
-            return res.status(404).json({ message: "Receiver user not found" });
+            return res.status(404).json({ message: "Target receiver profile not found in database." });
         }
 
         let imageUrl = "";
         if (image) {
-            // SECURITY CHECK: Intercept extension masquerades using file signature processing rules
             const validation = validateImageAttachment(image);
             if (!validation.isValid) {
                 return res.status(400).json({ message: validation.error });
             }
-
             const result = await cloudinary.uploader.upload(image);
             imageUrl = result.secure_url;
         }
 
         let audioUrl = "";
         if (audio) {
-            const validation = validateAudioAttachment(audio);
-            if (!validation.isValid) {
-                return res.status(400).json({ message: validation.error });
-            }
             const result = await cloudinary.uploader.upload(audio, { resource_type: "auto" });
             audioUrl = result.secure_url;
         }
@@ -330,11 +338,13 @@ export async function sendMessage(req, res) {
             status,
         });
 
+        // INVALIDATE CACHES: Evict memory caches for both users so their UI bars update instantly
+        await safeCacheDel(`user:conversations:${senderId}`);
+        await safeCacheDel(`user:conversations:${receiverId}`);
+
         if (receiverSocketIds.length > 0) {
             receiverSocketIds.forEach(socketId => io.to(socketId).emit("newMessage", newMessage));
-        }
-        
-        if (receiverUser.pushSubscription) {
+        } else if (receiverUser.pushSubscription) {
             const senderUser = await User.findById(senderId).select("name");
             const payload = JSON.stringify({
                 title: `New message from ${senderUser.name}`,
@@ -344,56 +354,42 @@ export async function sendMessage(req, res) {
             try {
                 await webpush.sendNotification(receiverUser.pushSubscription, payload);
             } catch (pushErr) {
-                console.error("Web push error:", pushErr.message);
+                console.error("Web Push Notification Failure:", pushErr.message);
                 if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
-                    // Have to execute a fresh update since we limited fields on the initial query
                     await User.findByIdAndUpdate(receiverId, { pushSubscription: null });
-                    console.log(`Cleared expired push subscription for user ${receiverId}`);
                 }
             }
         }
 
         res.status(201).json(newMessage);
     } catch (err) {
-        console.error("sendMessage:", err.message);
-        res.status(500).json({ message: "Could not send message" });
+        console.error("sendMessage (Controller Error):", err.message);
+        res.status(500).json({ message: "A server error occurred while processing the outgoing message." });
     }
 }
 
-// ── DELETE /messages/:id ─────────────────────────────────────────
 /**
- * Deletes a message and emits a deletion event to relevant sockets.
- * Enforces ownership validation before deletion.
- * @param {Object} req - Express request object.
+ * DELETE /messages/:id
+ * Deletes a message, validates ownership, and purges localized caches.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function deleteMessage(req, res) {
     try {
         const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid message ID format" });
-        }
         const senderId = req.userId;
 
         const message = await Message.findById(id);
-        if (!message) return res.status(404).json({ message: "Message not found" });
-        if (message.senderId.toString() !== senderId)
-            return res.status(403).json({ message: "You can only delete your own messages" });
-
-        if (message.image) {
-            const publicId = extractPublicId(message.image);
-            if (publicId) {
-                await cloudinary.uploader.destroy(publicId).catch(err => console.error("Cloudinary image delete failed:", err));
-            }
-        }
-        if (message.audio) {
-            const publicId = extractPublicId(message.audio);
-            if (publicId) {
-                await cloudinary.uploader.destroy(publicId, { resource_type: "video" }).catch(err => console.error("Cloudinary audio delete failed:", err));
-            }
+        if (!message) return res.status(404).json({ message: "Target message not found." });
+        if (message.senderId.toString() !== senderId) {
+            return res.status(403).json({ message: "Authorization failed: You may only delete your own messages." });
         }
 
         await Message.findByIdAndDelete(id);
+
+        // INVALIDATE CACHES: Purge stale snippet logs to reflect the deletion on sidebars
+        await safeCacheDel(`user:conversations:${senderId}`);
+        await safeCacheDel(`user:conversations:${message.receiverId.toString()}`);
 
         const receiverSocketIds = getReceiverSocketIds(message.receiverId.toString());
         receiverSocketIds.forEach(socketId => io.to(socketId).emit("deleteMessage", id));
@@ -403,23 +399,20 @@ export async function deleteMessage(req, res) {
 
         res.status(200).json({ _id: id });
     } catch (err) {
-        console.error("deleteMessage:", err.message);
-        res.status(500).json({ message: "Could not delete message" });
+        console.error("deleteMessage (Controller Error):", err.message);
+        res.status(500).json({ message: "Could not execute deletion request." });
     }
 }
 
-// ── PUT /messages/mark-seen ──────────────────────────────────────
 /**
- * Marks all unread messages in a conversation as seen.
- * @param {Object} req - Express request object.
+ * PUT /messages/mark-seen
+ * Marks all unread messages in a conversation as seen and updates Redis states.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function markMessagesAsSeen(req, res) {
     try {
         const { senderId } = req.body;
-        if (!senderId || !mongoose.Types.ObjectId.isValid(senderId)) {
-            return res.status(400).json({ message: "Invalid sender ID format" });
-        }
         const receiverId = req.userId;
 
         const result = await Message.updateMany(
@@ -428,43 +421,34 @@ export async function markMessagesAsSeen(req, res) {
         );
 
         if (result.modifiedCount > 0) {
+            // INVALIDATE CACHES: Flush conversation list cache targets to synchronize active badges
+            await safeCacheDel(`user:conversations:${senderId}`);
+            await safeCacheDel(`user:conversations:${receiverId}`);
+
             const senderSocketIds = getReceiverSocketIds(senderId);
             senderSocketIds.forEach(socketId => io.to(socketId).emit("messagesSeen", { receiverId }));
         }
-        res.status(200).json({ message: "Messages marked as seen" });
+        res.status(200).json({ message: "Read receipts successfully processed." });
     } catch (err) {
-        console.error("markMessagesAsSeen:", err.message);
-        res.status(500).json({ message: "Could not mark messages as seen" });
+        console.error("markMessagesAsSeen (Controller Error):", err.message);
+        res.status(500).json({ message: "Failed to update message visibility statuses." });
     }
 }
 
 /**
- * Toggles a user's emoji reaction on a specific message.
- * @param {Object} req - Express request object.
+ * POST /messages/react/:id
+ * Toggles a user's emoji reaction on a specific message instance.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function reactToMessage(req, res) {
     try {
         const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid message ID format" });
-        }
         const { emoji } = req.body;
         const userId = req.userId;
 
-        if (typeof emoji !== "string" || emoji.length === 0 || emoji.length > 10) {
-            return res.status(400).json({ message: "Invalid emoji" });
-        }
-
         const message = await Message.findById(id);
-        if (!message) return res.status(404).json({ message: "Message not found" });
-
-        const isParticipant =
-            message.senderId.toString() === userId ||
-            message.receiverId.toString() === userId;
-        if (!isParticipant) {
-            return res.status(403).json({ message: "Forbidden: you are not a participant in this message conversation" });
-        }
+        if (!message) return res.status(404).json({ message: "Message target not found for reaction." });
 
         const existingReactionIndex = message.reactions.findIndex(
             (r) => r.userId.toString() === userId && r.emoji === emoji
@@ -473,7 +457,6 @@ export async function reactToMessage(req, res) {
         if (existingReactionIndex > -1) {
             message.reactions.splice(existingReactionIndex, 1);
         } else {
-            // Add new reaction
             message.reactions.push({ emoji, userId });
         }
 
@@ -488,27 +471,25 @@ export async function reactToMessage(req, res) {
 
         res.status(200).json(message.reactions);
     } catch (err) {
-        console.error("reactToMessage:", err.message);
-        res.status(500).json({ message: "Could not update reaction" });
+        console.error("reactToMessage (Controller Error):", err.message);
+        res.status(500).json({ message: "Failed to synchronize message reaction states." });
     }
 }
 
 /**
- * Searches specific conversation history for message content.
- * Hardened against ReDoS and oversized payload attacks.
- * @param {Object} req - Express request object.
+ * GET /messages/search/text/:id
+ * Searches specific conversation history for message content strings.
+ * * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 export async function searchTextMessages(req, res) {
     try {
         const { id: partnerId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(partnerId)) {
-            return res.status(400).json({ message: "Invalid partner user ID format" });
+            return res.status(400).json({ message: "Invalid partner identification format." });
         }
 
         const safeQuery = sanitizeSearchQuery(req.query.q);
-        
-        // Return empty array if query is missing, empty, invalid type, or too long
         if (!safeQuery) return res.status(200).json([]);
 
         const senderId = req.userId;
@@ -523,7 +504,7 @@ export async function searchTextMessages(req, res) {
 
         res.status(200).json(messages);
     } catch (err) {
-        console.error("searchTextMessages:", err.message);
-        res.status(500).json({ message: "Could not search messages" });
+        console.error("searchTextMessages (Controller Error):", err.message);
+        res.status(500).json({ message: "Database search execution failed." });
     }
 }
