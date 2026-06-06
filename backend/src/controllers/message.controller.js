@@ -240,13 +240,27 @@ export async function markMessagesAsSeen(req, res) {
         const { senderId } = req.body;
         const receiverId = req.userId;
 
+        // PRIVACY CHECK: Fetch the active user's read receipt preference
+        const currentUser = await User.findById(receiverId).select("readReceiptsEnabled");
+        
+        // If the user disabled read receipts, safely intercept and mock a success response
+        if (currentUser && currentUser.readReceiptsEnabled === false) {
+            return res.status(200).json({ message: "Messages marked as seen (muted)" });
+        }
+
         const result = await Message.updateMany(
             { senderId, receiverId, status: { $ne: "seen" } },
             { $set: { status: "seen" } }
         );
 
-        // Only emit socket event if messages were actually updated
         if (result.modifiedCount > 0) {
+            // Redis Cache Invalidation
+            const redis = getRedisClient();
+            if (redis) {
+                await redis.del(`user:conversations:${senderId}`);
+                await redis.del(`user:conversations:${receiverId}`);
+            }
+
             const senderSocketIds = getReceiverSocketIds(senderId);
             senderSocketIds.forEach(socketId => io.to(socketId).emit("messagesSeen", { receiverId }));
         }

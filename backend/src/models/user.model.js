@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    readReceiptsEnabled: {
+        type: Boolean,
+        default: true,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });
