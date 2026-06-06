@@ -3,7 +3,7 @@ import {
     Image, Images, Send, X, MessageSquare,
     ArrowLeft, Smile, Mic, Square,Loader2, 
     Phone, Video, Trash2,Search, FileText,
-    NotebookPen,BarChart3
+    NotebookPen, BarChart3
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
@@ -51,6 +51,7 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [replyTo, setReplyTo] = useState(null)
     const [showEmoji, setShowEmoji] = useState(false)
     const [showSpamWarning, setShowSpamWarning] = useState(false)
+    const [showInsights, setShowInsights] = useState(false)
     const [showPoll, setShowPoll] = useState(false)
     const [showNotes, setShowNotes] = useState(false)
     const [sharedNotes, setSharedNotes] = useState("")
@@ -238,6 +239,18 @@ setShowSpamWarning(
     }
 
     const isOnline = selectedUser && onlineUsers.includes(selectedUser._id)
+    const totalMessages = messages.length
+
+const myMessages = messages.filter(
+    msg => msg.senderId === authUser?._id
+).length
+
+const receivedMessages =
+    totalMessages - myMessages
+
+const mediaMessages = messages.filter(
+    msg => msg.image || msg.audio
+).length
     const sharedMedia = messages.filter(msg => msg.image)
 
     if (!selectedUser) return (
