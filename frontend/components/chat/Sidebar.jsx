@@ -44,10 +44,10 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
     }, [])
 
     const filtered = users.filter(u =>
-    (selectedFolder === "All" ||
-        u.folder === selectedFolder) &&
-    u.name.toLowerCase().includes(search.toLowerCase())
-)
+        (selectedFolder === "All" ||
+            u.folder === selectedFolder) &&
+        u.name.toLowerCase().includes(search.toLowerCase())
+    )
 
     return (
         <aside className={`
@@ -57,41 +57,39 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
             <div className="p-4 border-b border-base-200">
                 <div className="flex items-center justify-between mb-3">
                     <div>
-    <h2 className="font-bold text-lg">
-        Messages
-        {onlineUsers.length > 0 && (
-            <span className="ml-2 badge badge-success badge-sm">
-                {onlineUsers.length} online
-            </span>
-        )}
-    </h2>
-
-    <p className="text-[10px] text-base-content/40">
-        Backup status: Not configured
-    </p>
-</div>
+                        <h2 className="font-bold text-lg">
+                            Messages
+                            {onlineUsers.length > 0 && (
+                                <span className="ml-2 badge badge-success badge-sm">
+                                    {onlineUsers.length} online
+                                </span>
+                            )}
+                        </h2>
+                        <p className="text-[10px] text-base-content/40">
+                            Backup status: Not configured
+                        </p>
+                    </div>
                     <div className="flex items-center gap-1">
-    <button
-        className="btn btn-ghost btn-sm btn-circle"
-        title="Active Devices"
-    >
-        <MonitorSmartphone className="w-4 h-4" />
-    </button>
-
-    <button
-        onClick={() => setShowNewChat(true)}
-        className="btn btn-ghost btn-sm btn-circle"
-        title="New chat"
-    >
-        <PenSquare className="w-4 h-4" />
-    </button>
-</div>
+                        <button
+                            className="btn btn-ghost btn-sm btn-circle"
+                            title="Active Devices"
+                        >
+                            <MonitorSmartphone className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setShowNewChat(true)}
+                            className="btn btn-ghost btn-sm btn-circle"
+                            title="New chat"
+                        >
+                            <PenSquare className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
                 <label className="input input-bordered input-sm flex items-center gap-2 w-full">
                     <Search className="w-3.5 h-3.5 text-base-content/40" />
                     <input
                         type="text"
-                        placeholder="Search conversations…"
+                        placeholder="Search conversations..."
                         className="grow bg-transparent outline-none text-sm"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
@@ -100,20 +98,20 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
             </div>
 
             <div className="flex gap-2 px-3 py-2 border-b border-base-200 overflow-x-auto">
-    {["All", "Work", "Friends", "Archived"].map(folder => (
-        <button
-            key={folder}
-            onClick={() => setSelectedFolder(folder)}
-            className={`btn btn-xs ${
-                selectedFolder === folder
-                    ? "btn-primary"
-                    : "btn-outline"
-            }`}
-        >
-            {folder}
-        </button>
-    ))}
-</div>
+                {["All", "Work", "Friends", "Archived"].map(folder => (
+                    <button
+                        key={folder}
+                        onClick={() => setSelectedFolder(folder)}
+                        className={`btn btn-xs ${
+                            selectedFolder === folder
+                                ? "btn-primary"
+                                : "btn-outline"
+                        }`}
+                    >
+                        {folder}
+                    </button>
+                ))}
+            </div>
 
             <div className="flex-1 overflow-y-auto">
                 {isUsersLoading ? (
@@ -129,17 +127,24 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                         </button>
                     </div>
                 ) : filtered.length === 0 ? (
-                    <p className="text-center text-base-content/40 text-sm py-8">No results</p>
+                    <div className="flex flex-col items-center justify-center h-full gap-2 px-6 text-center py-8">
+                        <p className="text-base-content/40 text-sm font-medium">
+                            No conversations in {selectedFolder} yet.
+                        </p>
+                        <p className="text-base-content/30 text-xs">
+                            Start a new chat to get started!
+                        </p>
+                    </div>
                 ) : (
                     filtered.map(user => {
                         const isOnline = onlineUsers.includes(user._id)
                         const lm = user.lastMessage
                         const folder =
-                        user.folder ||
-                        (user.name.charCodeAt(0) % 2 === 0 
-                        ? "Work": "Friends")
+                            user.folder ||
+                            (user.name.charCodeAt(0) % 2 === 0
+                                ? "Work" : "Friends")
                         const preview = lm
-                            ? (lm.message || (lm.audio ? "🎤 Voice" : lm.image ? "📷 Image" : ""))
+                            ? (lm.message || (lm.audio ? "Voice" : lm.image ? "Image" : ""))
                             : ""
                         return (
                             <button
@@ -158,15 +163,10 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1 min-w-0">
-    <p className="font-medium text-sm truncate">
-        {user.name}
-    </p>
-
-    <Palette
-        className="w-3 h-3 text-primary shrink-0"
-        title="Chat personalization available"
-    />
-</div>
+                                            <p className="font-medium text-sm truncate">
+                                                {user.name}
+                                            </p>
+                                        </div>
                                         {lm?.createdAt && (
                                             <span className="text-[10px] text-base-content/40 shrink-0 ml-2">
                                                 {formatTime(lm.createdAt)}
@@ -176,24 +176,24 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                     <div className="flex items-center justify-between">
                                         {typingUsers.includes(user._id) ? (
                                             <div className="flex items-center gap-1">
-    <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-    <p className="text-xs text-success font-bold truncate">
-        typing...
-    </p>
-</div>
+                                                <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+                                                <p className="text-xs text-success font-bold truncate">
+                                                    typing...
+                                                </p>
+                                            </div>
                                         ) : preview ? (
                                             <p className="text-xs text-base-content/50 truncate">{preview}</p>
                                         ) : (
                                             <div className="flex items-center gap-1">
-    <span
-        className={`w-2 h-2 rounded-full ${
-            isOnline ? "bg-success" : "bg-base-300"
-        }`}
-    />
-    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
-        {isOnline ? "Active now" : "Offline"}
-    </p>
-</div>
+                                                <span
+                                                    className={`w-2 h-2 rounded-full ${
+                                                        isOnline ? "bg-success" : "bg-base-300"
+                                                    }`}
+                                                />
+                                                <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                                    {isOnline ? "Active now" : "Offline"}
+                                                </p>
+                                            </div>
                                         )}
                                         {user.unreadCount > 0 && (
                                             <span className="badge badge-primary badge-xs ml-1 shrink-0">
@@ -204,8 +204,8 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                 </div>
                             </button>
                         )
-                    }))
-                }
+                    })
+                )}
             </div>
 
             {showNewChat && (
