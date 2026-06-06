@@ -80,9 +80,15 @@ io.on("connection", (socket) => {
     });
 
     // WebRTC Signaling
-    socket.on("callUser", ({ userToCall, signalData, from, name, type }) => {
-        const receiverSockets = getReceiverSocketIds(userToCall);
-        receiverSockets.forEach(s => io.to(s).emit("incomingCall", { signal: signalData, from, name, type }));
+    socket.on("callUser", async ({ userToCall, signalData, type }) => {
+        try {
+            const sender = await User.findById(userId).select("name");
+            if (!sender) return;
+            const receiverSockets = getReceiverSocketIds(userToCall);
+            receiverSockets.forEach(s => io.to(s).emit("incomingCall", { signal: signalData, from: userId, name: sender.name, type }));
+        } catch (err) {
+            console.error("Error in callUser:", err);
+        }
     });
 
     socket.on("answerCall", ({ to, signal }) => {
