@@ -4,6 +4,7 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketIds } from "../lib/socket.js";
 import webpush from "../lib/webpush.js";
+import { validateImageAttachment, validateAudioAttachment } from "../lib/utils.js";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -43,65 +44,7 @@ const sanitizeSearchQuery = (query, maxLength = 100) => {
     return escapeRegex(trimmed);
 };
 
-/**
- * SECURITY GATEWAY: Validates incoming Base64 image payload signatures and data footprints.
- * Rejects extension forgery by analyzing actual MIME content mapping declarations.
- * * @param {string} base64Str - The raw Base64 data URL string from the client.
- * @param {number} maxSizeBytes - Maximum permissible binary footprint (default 5MB).
- * @returns {Object} Validation status descriptor containing { isValid: boolean, error?: string }
- */
-const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 1024) => {
-    // Check if format conforms to a legitimate Data URL structure
-    const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-        return { isValid: false, error: "Invalid file format structure or corrupt payload." };
-    }
 
-    const mimeType = match[1];
-    const rawData = match[2];
-
-    // Enforce strict allow-list on image signatures to block structural forgery
-    const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
-        return { isValid: false, error: "Unsupported image signature type. Allowed formats: JPEG, PNG, WEBP, GIF." };
-    }
-
-    // Calculate precise binary footprint size from base64 encoding representation string length
-    const binarySizeEstimate = Math.floor((rawData.length * 3) / 4) - (rawData.endsWith("==") ? 2 : rawData.endsWith("=") ? 1 : 0);
-    if (binarySizeEstimate > maxSizeBytes) {
-        return { isValid: false, error: "File boundary limit exceeded. Image size must be under 5MB." };
-    }
-
-    return { isValid: true };
-};
-
-/**
- * SECURITY GATEWAY: Validates incoming Base64 audio payload signatures and data footprints.
- * @param {string} base64Str - The raw Base64 data URL string from the client.
- * @param {number} maxSizeBytes - Maximum permissible binary footprint (default 10MB).
- * @returns {Object} Validation status descriptor containing { isValid: boolean, error?: string }
- */
-const validateAudioAttachment = (base64Str, maxSizeBytes = 10 * 1024 * 1024) => {
-    const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-        return { isValid: false, error: "Invalid audio format structure or corrupt payload." };
-    }
-
-    const mimeType = match[1];
-    const rawData = match[2];
-
-    const ALLOWED_MIME_TYPES = ["audio/webm", "audio/mp3", "audio/wav", "audio/mpeg", "audio/ogg", "audio/x-m4a", "audio/m4a"];
-    if (!ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
-        return { isValid: false, error: "Unsupported audio format. Allowed formats: WEBM, MP3, WAV, OGG, M4A." };
-    }
-
-    const binarySizeEstimate = Math.floor((rawData.length * 3) / 4) - (rawData.endsWith("==") ? 2 : rawData.endsWith("=") ? 1 : 0);
-    if (binarySizeEstimate > maxSizeBytes) {
-        return { isValid: false, error: "Audio size exceeds the 10MB limit." };
-    }
-
-    return { isValid: true };
-};
 
 // ── GET /messages/users ──────────────────────────────────────────
 /**
