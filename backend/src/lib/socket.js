@@ -91,6 +91,14 @@ io.on("connection", (socket) => {
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+        // Provide initial state of online contacts on client demand
+        socket.on("getOnlineContacts", (callback) => {
+            if (typeof callback !== "function") return;
+            const onlineContacts = contacts.filter(contactId => userSocketMap[contactId] && userSocketMap[contactId].length > 0);
+            callback(onlineContacts);
+        });
+    } //  The "if (userId)" block now closes safely here!
+    
     // Typing indicators
     socket.on("typing", ({ receiverId }) => {
         const receiverSockets = getReceiverSocketIds(receiverId);
@@ -147,6 +155,6 @@ io.on("connection", (socket) => {
         
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
-});
+}); 
 
 export { io, app, server };
