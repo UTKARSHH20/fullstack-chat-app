@@ -142,13 +142,14 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
 // Fix: Update browser tab title when conversation changes
 useEffect(() => {
+    useEffect(() => {
     if (selectedUser) {
         document.title = `${selectedUser.name} | chatter-box`
     } else {
-        document.title = "chatter-box"
+        document.title = "chatter-box – Real-time Messaging"
     }
     return () => {
-        document.title = "chatter-box"
+        document.title = "chatter-box – Real-time Messaging"
     }
 }, [selectedUser])
     useEffect(() => {
