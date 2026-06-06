@@ -268,9 +268,12 @@ export default function CallHandler() {
      */
     const toggleMute = () => {
         if (localStream) {
-            localStream.getAudioTracks()[0].enabled = isMuted;
-            setIsMuted(!isMuted);
-        }
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = isMuted;
+                setIsMuted(!isMuted);
+            }
+        }     
     };
 
     /**
