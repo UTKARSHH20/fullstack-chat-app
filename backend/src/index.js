@@ -112,11 +112,20 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // System Boot
-server.listen(PORT, () => {
-    // GSSoC Issue #45 Fix
-    console.log(`[INFO] Server successfully running on port ${PORT}`);
-    connectDB();
-});
+const startServer = async () => {
+    try {
+        await connectDB();
+        // GSSoC Issue #45 Fix
+        server.listen(PORT, () => {
+            console.log(`[INFO] Server successfully running on port ${PORT}`);
+        });
+    } catch (err) {
+        console.error("FATAL ERROR: Failed to connect to the database on startup.", err);
+        process.exit(1);
+    }
+};
+
+startServer();
 
 // Global Process Exception Listeners Hardened Against Leak Vectors
 process.on("unhandledRejection", (err) => {
