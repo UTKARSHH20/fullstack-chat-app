@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    isOnline: {
+        type: Boolean,
+        default: false,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

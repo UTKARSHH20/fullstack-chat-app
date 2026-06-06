@@ -9,8 +9,6 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        // Allow any origin so the app works on phones/tablets on local network
-        // and in all dev environments. Lock this down to your domain in production.
         origin: process.env.ALLOWED_ORIGINS
             ? process.env.ALLOWED_ORIGINS.split(",")
             : true,
@@ -29,8 +27,10 @@ io.on("connection", (socket) => {
         if (!userSocketMap[userId]) userSocketMap[userId] = [];
         userSocketMap[userId].push(socket.id);
         
-        // Also update lastSeen to 'now' when they connect
-        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
+        // REALTIME STATUS FIX: Toggle user state online and announce to rooms
+        User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() })
+            .then(() => io.emit("onlineStatusChanged", { userId, isOnline: true }))
+            .catch(err => console.error(err));
 
         // Mark offline pending messages as delivered
         Message.updateMany(
@@ -92,7 +92,10 @@ io.on("connection", (socket) => {
             if (userSocketMap[userId].length === 0) {
                 delete userSocketMap[userId];
                 try {
-                    await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+                    // REALTIME STATUS FIX: Mark user offline and broadcast final sync
+                    const updatedTime = new Date();
+                    await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: updatedTime });
+                    io.emit("onlineStatusChanged", { userId, isOnline: false, lastSeen: updatedTime });
                 } catch (err) {
                     console.error(err);
                 }
