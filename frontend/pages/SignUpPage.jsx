@@ -10,9 +10,28 @@ export default function SignUpPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [formData, setFormData] = useState({ name: "", email: "", password: "" })
 
+    const passwordStrength = [
+        formData.password.length >= 8,
+        /[A-Z]/.test(formData.password),
+        /[a-z]/.test(formData.password),
+        /\d/.test(formData.password),
+        /[@#$!%&*]/.test(formData.password),
+    ].filter(Boolean).length
+
+
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (formData.password.length < 6) return
+
+        const passwordRegex =
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$!%&*])[A-Za-z\d@#$!%&*]{8,}$/
+
+        if (!passwordRegex.test(formData.password)) {
+            toast.error(
+               "Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character."
+            )
+            return
+        }
+
         try {
             await signup(formData)
             navigate("/")
@@ -132,7 +151,9 @@ export default function SignUpPage() {
                         <div className="form-control">
                             <label className="label" htmlFor="signup-password">
                                 <span className="label-text font-medium">Password</span>
-                                <span className="label-text-alt text-base-content/40">min. 6 characters</span>
+                                <span className="label-text-alt text-base-content/40">
+                                   Strong password required
+                               </span>
                             </label>
                             <label className="input input-bordered flex items-center gap-2 w-full">
                                 <Lock className="h-4 w-4 text-base-content/40 shrink-0" />
@@ -143,9 +164,10 @@ export default function SignUpPage() {
                                     className="grow bg-transparent outline-none"
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    minLength={6}
+                                    minLength={8}
                                     required
                                 />
+
                                 <button
                                     type="button"
                                     id="signup-toggle-password"
@@ -159,28 +181,35 @@ export default function SignUpPage() {
                                 </button>
                             </label>
 
+                            <div className="mt-2 text-xs text-base-content/60">
+                               <p>Password must contain:</p>
+                               <ul className="list-disc ml-4 mt-1">
+                                <li>At least 8 characters</li>
+                                <li>One uppercase letter (A-Z)</li>
+                                <li>One lowercase letter (a-z)</li>
+                                <li>One number (0-9)</li>
+                                <li>One special character (@, #, $, !, %, &, *)</li>
+                               </ul>
+                            </div>
+
                             {formData.password.length > 0 && (
                                 <div className="mt-2 space-y-1">
                                     <div className="h-1.5 w-full bg-base-200 rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full transition-all duration-300 ${formData.password.length < 4
+                                            className={`h-full rounded-full transition-all duration-300 ${passwordStrength < 2
                                                     ? "w-1/4 bg-error"
-                                                    : formData.password.length < 6
-                                                        ? "w-1/2 bg-warning"
-                                                        : formData.password.length < 10
-                                                            ? "w-3/4 bg-success"
-                                                            : "w-full bg-success"
+                                                    : passwordStrength < 4
+                                                       ? "w-3/4 bg-success"
+                                                       : "w-full bg-success"
                                                 }`}
                                         />
                                     </div>
                                     <p className="text-xs text-base-content/50">
-                                        {formData.password.length < 4
-                                            ? "Too short"
-                                            : formData.password.length < 6
-                                                ? "Almost there"
-                                                : formData.password.length < 10
-                                                    ? "Good password"
-                                                    : "Strong password ✓"}
+                                        {passwordStrength <= 2
+                                          ? "Weak Password"
+                                          : passwordStrength <= 4
+                                             ? "Good Password"
+                                             : "Strong Password ✓"}
                                     </p>
                                 </div>
                             )}
