@@ -104,6 +104,14 @@ app.use((err, req, res, next) => {
     });
 });
 
+// API Not Found Handler: return JSON 404 for unmatched API routes
+app.use("/api/*", (req, res) => {
+    res.status(404).json({
+        message: `Route ${req.originalUrl} not found`,
+        statusCode: 404,
+    });
+});
+
 // SPA Asset Distribution Handlers (Production Target Static Serves)
 if (process.env.NODE_ENV === "production") {
     const frontendDist = path.join(__dirname, "../../frontend/dist");
