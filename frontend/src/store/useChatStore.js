@@ -153,6 +153,23 @@ const useChatStore = create((set, get) => ({
     },
 
     /**
+     * Updates the text content of an existing message.
+     * @param {string} messageId - ID of the message to edit.
+     * @param {string} newText - The updated text content.
+     */
+    updateMessage: async (messageId, newText) => {
+        try {
+            const res = await axiosInstance.put(`/messages/edit/${messageId}`, { message: newText });
+            set((state) => ({
+                messages: state.messages.map((m) => (m._id === messageId ? res.data : m)),
+            }));
+            toast.success("Message updated");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to update message");
+        }
+    },
+
+    /**
      * Deletes a message for both users.
      * @param {string} messageId - ID of the message to delete.
      */
@@ -283,6 +300,14 @@ const useChatStore = create((set, get) => ({
 
         socket.on("deleteMessage", (messageId) => {
             set({ messages: get().messages.filter((m) => m._id !== messageId) });
+        });
+
+        socket.on("messageUpdated", (updatedMessage) => {
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m._id === updatedMessage._id ? updatedMessage : m
+                ),
+            }));
         });
 
         socket.on("userTyping", ({ senderId }) => {
