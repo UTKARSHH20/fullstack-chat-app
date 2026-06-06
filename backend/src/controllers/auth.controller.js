@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
-import { generateTokenAndSetCookie } from "../lib/utils.js";
+import { generateTokenAndSetCookie, catchAsync } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
 
 let googleClient;
@@ -28,9 +28,8 @@ const getGoogleClient = () => {
  * * @param {Object} req - Express request object containing registration body.
  * @param {Object} res - Express response object.
  */
-export async function signup(req, res) {
+export const signup = catchAsync(async (req, res) => {
     const { name, email, password } = req.body;
-    try {
         const existing = await User.findOne({ email });
         if (existing) {
             return res.status(409).json({ message: "An account with this email already exists" });
@@ -55,11 +54,7 @@ export async function signup(req, res) {
             email: user.email,
             profilePicture: user.profilePicture,
         });
-    } catch (err) {
-        console.error("signup:", err.message);
-        res.status(500).json({ message: "Could not create account, please try again" });
-    }
-}
+});
 
 /**
  * Handles local user authentication (Login).
@@ -67,9 +62,8 @@ export async function signup(req, res) {
  * * @param {Object} req - Express request object containing login credentials.
  * @param {Object} res - Express response object.
  */
-export async function login(req, res) {
+export const login = catchAsync(async (req, res) => {
     const { email, password } = req.body;
-    try {
         const user = await User.findOne({ email: email.toLowerCase().trim() });
         if (!user || !user.password) {
             return res.status(401).json({ message: "Invalid email or password" });
@@ -89,11 +83,7 @@ export async function login(req, res) {
             email: user.email,
             profilePicture: user.profilePicture,
         });
-    } catch (err) {
-        console.error("login:", err.message);
-        res.status(500).json({ message: "Login failed, please try again" });
-    }
-}
+});
 
 /**
  * Handles single-tap Google OAuth2 federated authentication transactions.
@@ -101,13 +91,12 @@ export async function login(req, res) {
  * * @param {Object} req - Express request object containing the raw idToken credential.
  * @param {Object} res - Express response object.
  */
-export async function googleAuth(req, res) {
+export const googleAuth = catchAsync(async (req, res) => {
     const { credential } = req.body;
     if (!credential) {
         return res.status(400).json({ message: "Google credential is required" });
     }
 
-    try {
         const client = getGoogleClient();
         const cleanClientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
         
@@ -146,11 +135,7 @@ export async function googleAuth(req, res) {
             email: user.email,
             profilePicture: user.profilePicture,
         });
-    } catch (err) {
-        console.error("googleAuth:", err.message);
-        res.status(401).json({ message: "Google authentication failed" });
-    }
-}
+});
 
 /**
  * Destroys the active user authentication session.
@@ -174,12 +159,11 @@ export function logout(req, res) {
  * * @param {Object} req - Express request object containing the new username.
  * @param {Object} res - Express response object.
  */
-export async function updateProfile(req, res) {
+export const updateProfile = catchAsync(async (req, res) => {
     const { name } = req.body;
     if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 50) {
         return res.status(400).json({ message: "Name must be between 2 and 50 characters" });
     }
-    try {
         const updates = { name: name.trim() };
 
         // Enforce strong projection filters during model update cycles
@@ -193,11 +177,7 @@ export async function updateProfile(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         res.status(200).json(user);
-    } catch (err) {
-        console.error("updateProfile:", err.message);
-        res.status(500).json({ message: "Could not update profile" });
-    }
-}
+});
 
 /**
  * Intercepts incoming profile photo attachments and synchronizes storage maps with Cloudinary.
@@ -205,7 +185,7 @@ export async function updateProfile(req, res) {
  * * @param {Object} req - Express request object containing raw image payload.
  * @param {Object} res - Express response object.
  */
-export async function updateProfilePicture(req, res) {
+export const updateProfilePicture = catchAsync(async (req, res) => {
     // GSSoC Issue #47 Fix
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized: Invalid user session ID" });
@@ -221,7 +201,6 @@ export async function updateProfilePicture(req, res) {
         return res.status(400).json({ message: "Image size exceeds the 5MB limit" });
     }
 
-    try {
         const upload = await cloudinary.uploader.upload(profilePicture);
         
         // Strip sensitive credentials from returning memory layers
@@ -235,29 +214,20 @@ export async function updateProfilePicture(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         res.status(200).json(user);
-    } catch (err) {
-        console.error("updateProfilePicture:", err.message);
-        res.status(500).json({ message: "Could not update profile picture" });
-    }
-}
+});
 
 /**
  * Re-validates active tracking sessions during client hydration or reload cycles.
  * * @param {Object} req - Express request object containing validation tokens.
  * @param {Object} res - Express response object.
  */
-export async function checkAuth(req, res) {
-    try {
+export const checkAuth = catchAsync(async (req, res) => {
         const user = await User.findById(req.userId).select("-password -__v");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
         res.status(200).json(user);
-    } catch (err) {
-        console.error("checkAuth:", err.message);
-        res.status(500).json({ message: "Auth check failed" });
-    }
-}
+});
 
 /**
  * Registers Web Push subscription payloads to enable native system push features.
@@ -265,8 +235,7 @@ export async function checkAuth(req, res) {
  * * @param {Object} req - Express request object containing subscription models.
  * @param {Object} res - Express response object.
  */
-export async function subscribeToPush(req, res) {
-    try {
+export const subscribeToPush = catchAsync(async (req, res) => {
         const { subscription } = req.body;
         
         // HARDENING FIX: Explicitly strip credentials and metadata parameters from returning mutations
@@ -275,8 +244,4 @@ export async function subscribeToPush(req, res) {
         }).select("-password -__v");
         
         res.status(200).json({ message: "Push subscription saved" });
-    } catch (err) {
-        console.error("subscribeToPush:", err.message);
-        res.status(500).json({ message: "Could not save push subscription" });
-    }
-}
+});

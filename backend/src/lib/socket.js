@@ -41,7 +41,21 @@ const userSocketMap = {};
 
 export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
 
-io.on("connection", (socket) => {
+const getActiveContacts = async (userId) => {
+    try {
+        const [senders, receivers] = await Promise.all([
+            Message.distinct("senderId", { receiverId: userId }),
+            Message.distinct("receiverId", { senderId: userId })
+        ]);
+        const merged = [...senders, ...receivers].map(id => id.toString());
+        return [...new Set(merged)];
+    } catch (err) {
+        console.error("Error fetching active contacts:", err);
+        return [];
+    }
+};
+
+io.on("connection", async (socket) => {
     const userId = socket.userId;
 
     // Early guard return: Prevent state pollution / memory leaks from unauthenticated sockets
@@ -73,6 +87,14 @@ io.on("connection", (socket) => {
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+        // Provide initial state of online contacts on client demand
+        socket.on("getOnlineContacts", (callback) => {
+            if (typeof callback !== "function") return;
+            const onlineContacts = contacts.filter(contactId => userSocketMap[contactId] && userSocketMap[contactId].length > 0);
+            callback(onlineContacts);
+        });
+    } //  The "if (userId)" block now closes safely here!
+    
     // Typing indicators
     socket.on("typing", ({ receiverId }) => {
         const receiverSockets = getReceiverSocketIds(receiverId);
@@ -130,6 +152,6 @@ io.on("connection", (socket) => {
         
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
-});
+}); 
 
 export { io, app, server };
