@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
-import { generateTokenAndSetCookie } from "../lib/utils.js";
+import { generateTokenAndSetCookie, validateImageAttachment } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
 
 let googleClient;
@@ -215,10 +215,9 @@ export async function updateProfilePicture(req, res) {
         return res.status(400).json({ message: "No image provided" });
     }
 
-    // Validate base64 payload size (roughly: length * 3/4) is under 5MB (5,242,880 bytes)
-    const approximateSizeBytes = (profilePicture.length * 3) / 4;
-    if (approximateSizeBytes > 5 * 1024 * 1024) {
-        return res.status(400).json({ message: "Image size exceeds the 5MB limit" });
+    const validation = validateImageAttachment(profilePicture);
+    if (!validation.isValid) {
+        return res.status(400).json({ message: validation.error });
     }
 
     try {
@@ -269,10 +268,18 @@ export async function subscribeToPush(req, res) {
     try {
         const { subscription } = req.body;
         
+        if (subscription !== null) {
+            if (!subscription || typeof subscription !== "object" || 
+                !subscription.endpoint || !subscription.keys || 
+                !subscription.keys.p256dh || !subscription.keys.auth) {
+                return res.status(400).json({ message: "Invalid push subscription payload structure" });
+            }
+        }
+        
         // HARDENING FIX: Explicitly strip credentials and metadata parameters from returning mutations
         await User.findByIdAndUpdate(req.userId, { 
             pushSubscription: subscription 
-        }).select("-password -__v");
+        }, { runValidators: true }).select("-password -__v");
         
         res.status(200).json({ message: "Push subscription saved" });
     } catch (err) {
