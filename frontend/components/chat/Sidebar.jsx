@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Search, PenSquare, Palette } from "lucide-react"
+import { Search, PenSquare, MonitorSmartphone } from "lucide-react"
 import useChatStore from "../../src/store/useChatStore"
 import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
@@ -15,6 +15,7 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
     const { onlineUsers } = useAuthStore()
     const [search, setSearch] = useState("")
     const [showNewChat, setShowNewChat] = useState(false)
+    const [selectedFolder, setSelectedFolder] = useState("All")
 
     const previousOnlineRef = useRef(onlineUsers)
 
@@ -42,7 +43,11 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
         return () => socket.off("getOnlineUsers")
     }, [])
 
-    const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()))
+    const filtered = users.filter(u =>
+    (selectedFolder === "All" ||
+        u.folder === selectedFolder) &&
+    u.name.toLowerCase().includes(search.toLowerCase())
+)
 
     return (
         <aside className={`
@@ -65,13 +70,22 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
         Backup status: Not configured
     </p>
 </div>
-                    <button
-                        onClick={() => setShowNewChat(true)}
-                        className="btn btn-ghost btn-sm btn-circle"
-                        title="New chat"
-                    >
-                        <PenSquare className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+    <button
+        className="btn btn-ghost btn-sm btn-circle"
+        title="Active Devices"
+    >
+        <MonitorSmartphone className="w-4 h-4" />
+    </button>
+
+    <button
+        onClick={() => setShowNewChat(true)}
+        className="btn btn-ghost btn-sm btn-circle"
+        title="New chat"
+    >
+        <PenSquare className="w-4 h-4" />
+    </button>
+</div>
                 </div>
                 <label className="input input-bordered input-sm flex items-center gap-2 w-full">
                     <Search className="w-3.5 h-3.5 text-base-content/40" />
@@ -84,6 +98,22 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                     />
                 </label>
             </div>
+
+            <div className="flex gap-2 px-3 py-2 border-b border-base-200 overflow-x-auto">
+    {["All", "Work", "Friends", "Archived"].map(folder => (
+        <button
+            key={folder}
+            onClick={() => setSelectedFolder(folder)}
+            className={`btn btn-xs ${
+                selectedFolder === folder
+                    ? "btn-primary"
+                    : "btn-outline"
+            }`}
+        >
+            {folder}
+        </button>
+    ))}
+</div>
 
             <div className="flex-1 overflow-y-auto">
                 {isUsersLoading ? (
@@ -104,6 +134,10 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                     filtered.map(user => {
                         const isOnline = onlineUsers.includes(user._id)
                         const lm = user.lastMessage
+                        const folder =
+                        user.folder ||
+                        (user.name.charCodeAt(0) % 2 === 0 
+                        ? "Work": "Friends")
                         const preview = lm
                             ? (lm.message || (lm.audio ? "🎤 Voice" : lm.image ? "📷 Image" : ""))
                             : ""

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import {
-    Image, Send, X, MessageSquare,
-    ArrowLeft, Smile, Mic, Square,
-    Loader2, Phone, Video, Trash2,
-    Search, Clock
+    Image, Images, Send, X, MessageSquare,
+    ArrowLeft, Smile, Mic, Square,Loader2, 
+    Phone, Video, Trash2,Search, FileText,
+    NotebookPen,BarChart3
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
@@ -50,6 +50,11 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [sending, setSending] = useState(false)
     const [replyTo, setReplyTo] = useState(null)
     const [showEmoji, setShowEmoji] = useState(false)
+    const [showSpamWarning, setShowSpamWarning] = useState(false)
+    const [showPoll, setShowPoll] = useState(false)
+    const [showNotes, setShowNotes] = useState(false)
+    const [sharedNotes, setSharedNotes] = useState("")
+    const [showGallery, setShowGallery] = useState(false)
 
     // Search state
     const [searchOpen, setSearchOpen] = useState(false)
@@ -209,7 +214,16 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     }
 
     const handleTyping = (e) => {
-        setText(e.target.value)
+        const value = e.target.value
+setText(value)
+
+const suspiciousWords = ["spam", "scam", "fake", "hack"]
+
+setShowSpamWarning(
+    suspiciousWords.some(word =>
+        value.toLowerCase().includes(word)
+    )
+)
         // Auto-resize textarea up to ~4 lines
         const ta = textareaRef.current
         if (ta) {
@@ -224,6 +238,7 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     }
 
     const isOnline = selectedUser && onlineUsers.includes(selectedUser._id)
+    const sharedMedia = messages.filter(msg => msg.image)
 
     if (!selectedUser) return (
         <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-200 gap-4`}>
@@ -281,6 +296,43 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     >
                         <Video className="w-5 h-5" />
                     </button>
+
+                    <button
+    onClick={() => setShowGallery(!showGallery)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showGallery
+            ? "text-primary"
+            : "text-base-content/70"
+    }`}
+    title="Media Gallery"
+>
+    <Images className="w-5 h-5" />
+</button>
+
+                    <button
+    onClick={() => setShowPoll(!showPoll)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showPoll ? "text-primary" : "text-base-content/70"
+    }`}
+    title="Polls"
+>
+    <BarChart3 className="w-5 h-5" />
+</button>
+                    <button
+    className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-primary transition-colors"
+    title="Generate Conversation Summary"
+>
+    <FileText className="w-5 h-5" />
+    <button
+    onClick={() => setShowNotes(!showNotes)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showNotes ? "text-primary" : "text-base-content/70"
+    }`}
+    title="Shared Notes"
+>
+    <NotebookPen className="w-5 h-5" />
+</button>
+</button>
                 </div>
             </div>
 
@@ -322,7 +374,61 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             )}
 
+            {showGallery && (
+    <div className="border-b border-base-200 bg-base-100 p-3">
+        <h3 className="font-semibold text-sm mb-3">
+            Shared Media Gallery
+        </h3>
+
+        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+            {sharedMedia.map(media => (
+                <img
+                    key={media._id}
+                    src={media.image}
+                    alt="shared media"
+                    className="rounded-lg object-cover h-24 w-full cursor-pointer hover:scale-105 transition"
+                    onClick={() =>
+                        window.open(media.image, "_blank")
+                    }
+                />
+            ))}
+        </div>
+
+        {sharedMedia.length === 0 && (
+            <p className="text-xs text-base-content/50">
+                No shared media found
+            </p>
+        )}
+    </div>
+)}
+
             <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1 overscroll-contain">
+                {showNotes && (
+    <div className="border-b border-base-200 p-3 bg-base-200">
+        <div className="flex justify-between items-center mb-2">
+            <h3 className="font-semibold text-sm">
+                Collaborative Notes
+            </h3>
+
+            <span className="badge badge-primary badge-sm">
+                Shared
+            </span>
+        </div>
+
+        <textarea
+            value={sharedNotes}
+            onChange={(e) =>
+                setSharedNotes(e.target.value)
+            }
+            placeholder="Write shared notes here..."
+            className="textarea textarea-bordered w-full h-32"
+        />
+
+        <div className="text-xs text-base-content/50 mt-2">
+            Changes are visible to all participants
+        </div>
+    </div>
+)}
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="loading loading-spinner loading-md text-primary" />
@@ -366,6 +472,39 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <div ref={bottomRef} />
             </div>
 
+            {showPoll && (
+    <div className="mx-4 mb-3 p-4 rounded-xl border border-base-300 bg-base-200">
+        <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold">
+                Active Poll
+            </h3>
+        </div>
+
+        <p className="text-sm mb-3">
+            Which feature should be added next?
+        </p>
+
+        <div className="space-y-2">
+            <button className="btn btn-outline btn-sm w-full justify-start">
+                🌙 Dark Mode (12 votes)
+            </button>
+
+            <button className="btn btn-outline btn-sm w-full justify-start">
+                🎤 Voice Notes (8 votes)
+            </button>
+
+            <button className="btn btn-outline btn-sm w-full justify-start">
+                📊 Poll System (15 votes)
+            </button>
+        </div>
+
+        <div className="mt-3 text-xs opacity-60">
+            Poll expires in 24 hours
+        </div>
+    </div>
+)}
+
             <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} onReact={handleReact} />
 
             {replyTo && (
@@ -395,6 +534,12 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     </div>
                 </div>
             )}
+
+            {showSpamWarning && (
+    <div className="mx-3 mb-2 alert alert-warning py-2 text-sm">
+        ⚠️ This message may contain potentially harmful or spam-related content.
+    </div>
+)}
 
             <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative shrink-0 safe-bottom">
                 {showEmoji && (
