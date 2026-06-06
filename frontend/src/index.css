@@ -6,6 +6,7 @@
   themes: all;
   darkTheme: night;
 }
+@variant dark (:where([data-theme="night"], [data-theme="dark"]) &);
 
 /* Global font */
 *, *::before, *::after {
@@ -74,4 +75,4 @@ html {
 
 .flash-highlight {
   animation: flash-highlight 1.5s ease-in-out;
-}
+}

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom"
-import { MessageSquare, Settings, User, LogOut, Sun, Moon } from "lucide-react"
+import { MessageSquare, Settings, User, LogOut, Sun, Moon, Star } from "lucide-react"
 import useAuthStore from "../src/store/useAuthStore"
 import useThemeStore from "../src/store/useThemeStore"
 
@@ -47,7 +47,11 @@ const Navbar = () => {
 
                 {authUser && (
                     <>
-                        <Link to="/settings" id="nav-settings" className="btn btn-ghost btn-sm gap-2">
+                        <Link to="/saved" id="nav-saved" className="btn btn-ghost btn-sm gap-2">
+                        <Star className="w-4 h-4" />
+                        <span className="hidden sm:inline">Saved</span>
+                    </Link>
+                    <Link to="/settings" id="nav-settings" className="btn btn-ghost btn-sm gap-2">
                             <Settings className="w-4 h-4" />
                             <span className="hidden sm:inline">Settings</span>
                         </Link>

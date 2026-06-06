@@ -87,7 +87,7 @@ export default function SettingsPage() {
     const DARK_THEMES = new Set(["dark","night","dracula","synthwave","luxury","coffee","halloween","black","dim","forest","lofi","business"])
 
     return (
-        <div className="min-h-screen bg-base-200">
+        <div className="h-full overflow-y-auto p-4 md:p-6 bg-base-200">
             <div className="max-w-3xl mx-auto px-4 py-8">
 
                 {/* Page header */}

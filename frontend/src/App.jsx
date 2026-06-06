@@ -8,6 +8,7 @@ import SignUpPage from "../pages/SignUpPage"
 import ChatPage from "../pages/ChatPage"
 import SettingsPage from "../pages/SettingsPage"
 import ProfilePage from "../pages/ProfilePage"
+import SavedMessagesPage from "../pages/SavedMessagesPage"
 import CallHandler from "../components/CallHandler"
 import useAuthStore from "./store/useAuthStore"
 import useCallStore from "./store/useCallStore"
@@ -47,6 +48,7 @@ const App = () => {
           <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
           <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
           <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
+          <Route path="/saved" element={authUser ? <SavedMessagesPage /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>
