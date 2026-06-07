@@ -30,6 +30,11 @@ export default function SignUpPage() {
             return
         }
 
+        if (!passwordRegex.test(formData.password)) {
+            toast.error("Password is too weak. Please follow all complexity requirements.")
+            return
+        }
+
         try {
             await signup(formData)
             navigate("/")
@@ -184,16 +189,40 @@ export default function SignUpPage() {
                                 </button>
                             </label>
 
-                            <div className="mt-2 text-xs text-base-content/60">
-                                <p>Password must contain:</p>
-                                <ul className="list-disc ml-4 mt-1">
-                                    <li>At least 8 characters</li>
-                                    <li>One uppercase letter (A-Z)</li>
-                                    <li>One lowercase letter (a-z)</li>
-                                    <li>One number (0-9)</li>
-                                    <li>One special character (@, #, $, !, %, &, *)</li>
-                                </ul>
-                            </div>
+                            {formData.password && (
+                                <div className="mt-3 space-y-2">
+                                    <div className="flex gap-1 h-1">
+                                        {[...Array(5)].map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                                    i < passwordStrength
+                                                        ? passwordStrength <= 2
+                                                            ? "bg-error"
+                                                            : passwordStrength <= 4
+                                                            ? "bg-warning"
+                                                            : "bg-success"
+                                                        : "bg-base-content/10"
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                        {[
+                                            { label: "8+ characters", met: formData.password.length >= 8 },
+                                            { label: "Uppercase (A-Z)", met: /[A-Z]/.test(formData.password) },
+                                            { label: "Lowercase (a-z)", met: /[a-z]/.test(formData.password) },
+                                            { label: "Number (0-9)", met: /\d/.test(formData.password) },
+                                            { label: "Special character", met: /[@#$!%&*]/.test(formData.password) },
+                                        ].map((req, i) => (
+                                            <div key={i} className={`flex items-center gap-1.5 ${req.met ? "text-success" : "text-base-content/40"}`}>
+                                                <div className={`w-1 h-1 rounded-full ${req.met ? "bg-success" : "bg-base-content/20"}`} />
+                                                {req.label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="form-control">
