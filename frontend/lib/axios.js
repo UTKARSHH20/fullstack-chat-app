@@ -13,7 +13,10 @@ axiosInstance.interceptors.request.use((config) => {
         .find((row) => row.startsWith("XSRF-TOKEN="));
 
     if (tokenMatch) {
-        const token = tokenMatch.split("=")[1];
+        const token = decodeURIComponent(
+            tokenMatch.slice("XSRF-TOKEN=".length)
+        );
+
         config.headers["X-XSRF-TOKEN"] = token;
     }
 
