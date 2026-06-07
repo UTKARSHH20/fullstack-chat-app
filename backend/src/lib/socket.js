@@ -39,7 +39,8 @@ io.use((socket, next) => {
 
 const userSocketMap = {};
 
-export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
+export const getReceiverSocketIds = (userId) => 
+    userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
 const getActiveContacts = async (userId) => {
     try {
@@ -59,11 +60,8 @@ io.on("connection", async (socket) => {
     const userId = socket.userId;
 
     if (userId) {
-        // Check if this is their very first tab/device connecting before adding the new socket
-        const isFirstSession = !userSocketMap[userId] || userSocketMap[userId].length === 0;
-
-        if (!userSocketMap[userId]) userSocketMap[userId] = [];
-        userSocketMap[userId].push(socket.id);
+        if (!userSocketMap[userId]) userSocketMap[userId] = new Set();
+        userSocketMap[userId].add(socket.id);
         
         // Also update lastSeen to 'now' when they connect
         User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
@@ -145,10 +143,10 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("disconnect", async () => {
-        if (userId) {
-            userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
-            
-            if (userSocketMap[userId].length === 0) {
+        if (userId && userSocketMap[userId]) {
+            userSocketMap[userId].delete(socket.id);
+
+            if (userSocketMap[userId].size === 0) {
                 delete userSocketMap[userId];
                 try {
                     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
