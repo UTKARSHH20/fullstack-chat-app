@@ -104,12 +104,6 @@ app.use("/api/messages", messageLimiter, messageRoutes);
 /**
  * CENTRALIZED EXPRESS ERROR HANDLING MIDDLEWARE
  * Intercepts all unhandled route exceptions.
- * HARDENING FIX: Sanitizes stack traces in production to prevent info disclosure.
- */
-app.use((err, req, res, next) => {
-    console.error("Centralized Route Error Intercepted:", err.stack || err);
-    const statusCode = err.status || err.statusCode || 500;
-    
  * HARDENING FIX: Sanitizes stack traces in production to prevent information disclosure vulnerabilities.
  */
 app.use((err, req, res, next) => {
