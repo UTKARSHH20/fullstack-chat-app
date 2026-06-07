@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 const defaults = {
-    notifications: { messages: true, mentions: true, sounds: true, desktop: false },
+    notifications: { messages: true, mentions: true, sounds: true, desktop: false, muteDuration: "0"},
     chat: { enterSend: true, receipts: true, typing: true, timestamps: true, compact: false },
     privacy: { online: true, lastSeen: true, photo: true },
 }

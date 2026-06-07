@@ -117,22 +117,24 @@ app.use((err, req, res, next) => {
     console.error("Centralized Route Error Intercepted:", err.stack || err);
 
     const statusCode = err.status || err.statusCode || 500;
-    
-    // Evaluate execution scope to mask internal error details from HTTP clients in production
-    if (process.env.NODE_ENV === "production") {
-        return res.status(statusCode).json({
-            message: "An internal server error occurred.",
-            statusCode
-        });
+    const isProduction = process.env.NODE_ENV === "production";
+
+    // Standardized baseline envelope shared by both environments
+    const response = {
+        statusCode,
+        message: isProduction 
+            ? "An internal server error occurred." 
+            : (err.message || "Internal Server Error"),
+        error: err.name || "InternalServerError"
+    };
+
+    // Mutate the envelope with debugging features ONLY outside of production
+    if (!isProduction) {
+        response.error = err.toString();
+        response.stack = err.stack;
     }
 
-    // Deliver complete stack information only during local development testing cycles
-    return res.status(statusCode).json({
-        message: err.message || "Internal Server Error",
-        error: err.toString(),
-        stack: err.stack,
-        statusCode
-    });
+    return res.status(statusCode).json(response);
 });
 
 // SPA Asset Distribution Handlers (Production Target Static Serves)
