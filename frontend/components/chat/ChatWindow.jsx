@@ -3,7 +3,7 @@ import {
     Image, Images, Send, X, MessageSquare,
     ArrowLeft, Smile, Mic, Square,Loader2, 
     Phone, Video, Trash2,Search, FileText,
-    NotebookPen, BarChart3, Sparkles, PenTool, Compass
+    NotebookPen, BarChart3, Sparkles, PenTool, Compass, Clock
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
@@ -458,6 +458,7 @@ const mediaMessages = messages.filter(
     title="Generate Conversation Summary"
 >
     <FileText className="w-5 h-5" />
+    </button>
     <button
     onClick={() => setShowNotes(!showNotes)}
     className={`btn btn-ghost btn-circle btn-sm ${
@@ -466,7 +467,7 @@ const mediaMessages = messages.filter(
     title="Shared Notes"
 >
     <NotebookPen className="w-5 h-5" />
-</button>
+
 </button>
                 </div>
             </div>
