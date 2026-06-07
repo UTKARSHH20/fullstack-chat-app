@@ -66,7 +66,22 @@ const canCommunicate = async (senderId, receiverId) => {
     }
 };
 
-io.on("connection", (socket) => {
+const lastDbUpdateCache = new Map();
+
+const throttledUpdateLastSeen = async (userId) => {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId) || 0;
+    // Update at most once every 5 minutes (300000 ms)
+    if (now - lastUpdate > 300000) {
+        try {
+            await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+            lastDbUpdateCache.set(userId, now);
+        } catch (err) {
+            console.error("Failed to update last seen:", err);
+        }
+    }
+};
+
 const getActiveContacts = async (userId) => {
     try {
         const [senders, receivers] = await Promise.all([
