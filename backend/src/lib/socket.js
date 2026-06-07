@@ -40,10 +40,27 @@ const userSocketMap = {};
 
 export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
 
-io.on("connection", (socket) => {
+const getActiveContacts = async (userId) => {
+    try {
+        const [senders, receivers] = await Promise.all([
+            Message.distinct("senderId", { receiverId: userId }),
+            Message.distinct("receiverId", { senderId: userId })
+        ]);
+        const merged = [...senders, ...receivers].map(id => id.toString());
+        return [...new Set(merged)];
+    } catch (err) {
+        console.error("Error fetching active contacts:", err);
+        return [];
+    }
+};
+
+io.on("connection", async (socket) => {
     const userId = socket.userId;
 
     if (userId) {
+        // Check if this is their very first tab/device connecting before adding the new socket
+        const isFirstSession = !userSocketMap[userId] || userSocketMap[userId].length === 0;
+
         if (!userSocketMap[userId]) userSocketMap[userId] = [];
         userSocketMap[userId].push(socket.id);
         
@@ -71,6 +88,14 @@ Message.distinct("senderId", { receiverId: userId, status: "sent" })
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+        // Provide initial state of online contacts on client demand
+        socket.on("getOnlineContacts", (callback) => {
+            if (typeof callback !== "function") return;
+            const onlineContacts = contacts.filter(contactId => userSocketMap[contactId] && userSocketMap[contactId].length > 0);
+            callback(onlineContacts);
+        });
+    } //  The "if (userId)" block now closes safely here!
+    
     // Typing indicators
     socket.on("typing", ({ receiverId }) => {
         const receiverSockets = getReceiverSocketIds(receiverId);
@@ -117,17 +142,26 @@ Message.distinct("senderId", { receiverId: userId, status: "sent" })
     socket.on("disconnect", async () => {
         if (userId) {
             userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
+            
             if (userSocketMap[userId].length === 0) {
                 delete userSocketMap[userId];
                 try {
                     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+                    
+                    // Notify only their active contacts that they went offline
+                    const originalContacts = await getActiveContacts(userId);
+                    originalContacts.forEach(contactId => {
+                        const contactSockets = getReceiverSocketIds(contactId);
+                        contactSockets.forEach(s => {
+                            io.to(s).emit("userStatusChanged", { userId, status: "offline" });
+                        });
+                    });
                 } catch (err) {
                     console.error(err);
                 }
             }
         }
-        io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
-});
+}); 
 
 export { io, app, server };
