@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { Search, PenSquare, MonitorSmartphone, Palette } from "lucide-react"
+import { Search, PenSquare, MonitorSmartphone } from "lucide-react"
 import useChatStore from "../../src/store/useChatStore"
 import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
-import { Search, PenSquare, MonitorSmartphone, Palette } from "lucide-react"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -44,18 +43,18 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
         return () => socket.off("getOnlineUsers")
     }, [])
 
-    const totalUnread = users.reduce(
-    (sum, user) => sum + (user.unreadCount || 0),
-    0
-)
+    // Fix: derive folder client-side since backend does not return folder field
+    const getUserFolder = (user) => {
+        if (user.folder) return user.folder
+        return user.name.charCodeAt(0) % 2 === 0 ? "Work" : "Friends"
+    }
 
-const activeChats = onlineUsers.length
-
-    const filtered = users.filter(u =>
-        (selectedFolder === "All" ||
-            u.folder === selectedFolder) &&
-        u.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const filtered = users.filter(u => {
+        const folder = getUserFolder(u)
+        const matchesFolder = selectedFolder === "All" || folder === selectedFolder
+        const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase())
+        return matchesFolder && matchesSearch
+    })
 
     return (
         <aside className={`
@@ -121,28 +120,6 @@ const activeChats = onlineUsers.length
                 ))}
             </div>
 
-<div className="px-3 py-2 border-b border-base-200">
-    <div className="stats stats-vertical shadow w-full">
-        <div className="stat py-2">
-            <div className="stat-title text-xs">
-                Active Chats
-            </div>
-            <div className="stat-value text-lg">
-                {activeChats}
-            </div>
-        </div>
-
-        <div className="stat py-2">
-            <div className="stat-title text-xs">
-                Unread Messages
-            </div>
-            <div className="stat-value text-lg">
-                {totalUnread}
-            </div>
-        </div>
-    </div>
-</div>
-
             <div className="flex-1 overflow-y-auto">
                 {isUsersLoading ? (
                     <div className="flex items-center justify-center h-32">
@@ -169,10 +146,6 @@ const activeChats = onlineUsers.length
                     filtered.map(user => {
                         const isOnline = onlineUsers.includes(user._id)
                         const lm = user.lastMessage
-                        const folder =
-                            user.folder ||
-                            (user.name.charCodeAt(0) % 2 === 0
-                                ? "Work" : "Friends")
                         const preview = lm
                             ? (lm.message || (lm.audio ? "Voice" : lm.image ? "Image" : ""))
                             : ""
@@ -189,17 +162,7 @@ const activeChats = onlineUsers.length
                                         : "border-l-2 border-transparent"}
                                 `}
                             >
-                                <div
-    title={
-        isOnline
-            ? "Currently Online"
-            : user.lastSeen
-            ? `Last active: ${formatTime(user.lastSeen)}`
-            : "Offline"
-    }
->
-    <Avatar user={user} isOnline={isOnline} />
-</div>
+                                <Avatar user={user} isOnline={isOnline} />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1 min-w-0">
@@ -213,7 +176,6 @@ const activeChats = onlineUsers.length
                                             </span>
                                         )}
                                     </div>
-                                    
                                     <div className="flex items-center justify-between">
                                         {typingUsers.includes(user._id) ? (
                                             <div className="flex items-center gap-1">
