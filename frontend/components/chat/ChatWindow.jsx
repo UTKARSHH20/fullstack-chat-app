@@ -19,6 +19,7 @@ import ReplyBar from "./ReplyBar"
 import EmojiPicker from "./EmojiPicker"
 import MessageBubble from "./MessageBubble"
 import ScheduleMessageModal from "./ScheduleMessageModal"
+import { Clock } from "lucide-react"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
