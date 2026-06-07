@@ -39,14 +39,15 @@ io.use((socket, next) => {
 
 const userSocketMap = {};
 
-export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
+export const getReceiverSocketIds = (userId) => 
+    userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
 io.on("connection", (socket) => {
     const userId = socket.userId;
 
     if (userId) {
-        if (!userSocketMap[userId]) userSocketMap[userId] = [];
-        userSocketMap[userId].push(socket.id);
+        if (!userSocketMap[userId]) userSocketMap[userId] = new Set();
+        userSocketMap[userId].add(socket.id);
         
         // Also update lastSeen to 'now' when they connect
         User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
@@ -112,9 +113,10 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", async () => {
-        if (userId) {
-            userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
-            if (userSocketMap[userId].length === 0) {
+        if (userId && userSocketMap[userId]) {
+            userSocketMap[userId].delete(socket.id);
+
+            if (userSocketMap[userId].size === 0) {
                 delete userSocketMap[userId];
                 try {
                     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
