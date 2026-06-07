@@ -7,6 +7,22 @@ const axiosInstance = axios.create({
     withCredentials: true,
 });
 
+axiosInstance.interceptors.request.use((config) => {
+    const tokenMatch = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("XSRF-TOKEN="));
+
+    if (tokenMatch) {
+        const token = decodeURIComponent(
+            tokenMatch.slice("XSRF-TOKEN=".length)
+        );
+
+        config.headers["X-XSRF-TOKEN"] = token;
+    }
+
+    return config;
+});
+
 axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {

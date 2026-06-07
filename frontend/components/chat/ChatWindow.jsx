@@ -3,7 +3,7 @@ import {
     Image, Images, Send, X, MessageSquare,
     ArrowLeft, Smile, Mic, Square,Loader2, 
     Phone, Video, Trash2,Search, FileText,
-    NotebookPen, BarChart3
+    NotebookPen, BarChart3, Sparkles, PenTool, Compass
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
@@ -18,6 +18,7 @@ import ContextMenu from "./ContextMenu"
 import ReplyBar from "./ReplyBar"
 import EmojiPicker from "./EmojiPicker"
 import MessageBubble from "./MessageBubble"
+import ScheduleMessageModal from "./ScheduleMessageModal"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
@@ -56,6 +57,7 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [sending, setSending] = useState(false)
     const [replyTo, setReplyTo] = useState(null)
     const [showEmoji, setShowEmoji] = useState(false)
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [showSpamWarning, setShowSpamWarning] = useState(false)
     const [showInsights, setShowInsights] = useState(false)
     const [showPoll, setShowPoll] = useState(false)
@@ -293,16 +295,99 @@ const mediaMessages = messages.filter(
     const sharedMedia = messages.filter(msg => msg.image)
 
     if (!selectedUser) return (
-        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-200 gap-4`}>
-            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="w-10 h-10 text-primary/50" />
+    <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-100 transition-colors duration-300`}>
+        <div className="w-full h-full flex-1 text-base-content flex flex-col items-center justify-start py-6 px-6 font-sans antialiased overflow-y-auto selection:bg-primary/20">
+      
+            {/* --- TOP STATUS BAR --- */}
+            <div className="w-full max-w-3xl flex justify-between items-center text-[11px] font-mono tracking-widest text-base-content/40 px-2">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-sm shadow-primary/50"></span>
+                    SESSION • NEW
+                </div>
+                {/* Fixed the crash by using a safe optional check or inline handler */}
+                <button 
+                    onClick={() => typeof onNewChat === 'function' ? onNewChat() : toast.success("Starting a fresh session...")} 
+                    className="hover:text-primary transition-colors cursor-pointer text-base-content/60"
+                >
+                    + New chat
+                </button>
             </div>
-            <div className="text-center">
-                <h3 className="font-bold text-lg">Select a conversation</h3>
-                <p className="text-base-content/40 text-sm mt-1">Choose someone from the sidebar to start chatting</p>
+
+            {/* --- CENTER HERO SECTION --- */}
+            <div className="w-full max-w-2xl flex flex-col items-center text-center my-auto py-4">
+        
+                {/* Glow & Spark Logo */}
+                <div className="relative mb-8 flex items-center justify-center">
+                    <div className="absolute w-28 h-28 bg-primary/[0.04] rounded-full blur-2xl"></div>
+                    <div className="border border-base-content/10 bg-base-content/[0.02] p-4 rounded-full backdrop-blur-sm">
+                        <Sparkles className="w-6 h-6 text-primary/90 stroke-[1.25]" />
+                    </div>
+                </div>
+
+                {/* Text Headers */}
+                <div className="space-y-4 mb-12">
+                    <p className="text-[10px] font-mono tracking-[0.25em] text-primary/70 uppercase">
+                        — LUMEN • YOUR EVENING COMPANION —
+                    </p>
+          
+                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-base-content">
+                        Late night thoughts?
+                    </h1>
+                    <h2 className="text-3xl md:text-4xl font-bold italic tracking-tight text-primary/80 font-serif">
+                        What's on your mind?
+                    </h2>
+          
+                    <p className="text-base-content/60 text-xs md:text-sm max-w-md mx-auto pt-2 leading-relaxed">
+                        A quiet place to think out loud, draft something good, or sketch the next idea —{" "}
+                        <span className="text-base-content/40 italic">without the noise.</span>
+                    </p>
+                </div>
+
+                {/* --- GRID SUGGESTIONS CARDS --- */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full text-left">
+          
+                    {/* Card 1: WRITE */}
+                    <div className="bg-base-200/50 border border-base-content/5 hover:border-primary/30 p-4 rounded-xl flex gap-3.5 cursor-pointer transition-all duration-300 hover:bg-base-200 group">
+                        <div className="bg-base-300/60 p-2.5 h-fit rounded-lg border border-base-content/5 text-primary/70 group-hover:text-primary transition-colors">
+                            <PenTool className="w-4 h-4 stroke-[1.5]" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <span className="text-[9px] font-mono tracking-widest text-primary/70 uppercase block font-semibold">
+                                WRITE
+                            </span>
+                            <h3 className="font-bold text-sm text-base-content/90 tracking-wide">
+                                Draft a heartfelt thank-you note
+                            </h3>
+                            <p className="text-[11px] text-base-content/50 font-normal">
+                                for a mentor who changed my path
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Card 2: PLAN */}
+                    <div className="bg-base-200/50 border border-base-content/5 hover:border-primary/30 p-4 rounded-xl flex gap-3.5 cursor-pointer transition-all duration-300 hover:bg-base-200 group">
+                        <div className="bg-base-300/60 p-2.5 h-fit rounded-lg border border-base-content/5 text-primary/70 group-hover:text-primary transition-colors">
+                            <Compass className="w-4 h-4 stroke-[1.5]" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <span className="text-[9px] font-mono tracking-widest text-primary/70 uppercase block font-semibold">
+                                PLAN
+                            </span>
+                            <h3 className="font-bold text-sm text-base-content/90 tracking-wide">
+                                Design a 3-day Lisbon itinerary
+                            </h3>
+                            <p className="text-[11px] text-base-content/50 font-normal">
+                                slow mornings, golden hour walks
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
         </div>
-    )
+    </div>
+)
 
     return (
         <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0 h-full overflow-hidden`}>
@@ -620,19 +705,18 @@ const mediaMessages = messages.filter(
                         </button>
                         <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
                         <button
+                            onClick={() => setShowScheduleModal(true)}
+                            disabled={!text.trim() && !imageBase64 && !audioBase64}
+                            className="btn btn-ghost btn-sm btn-square shrink-0"
+                            title="Schedule Message"
+                        >
+                            <Clock className="w-4 h-4 text-base-content/50" />
+                        </button>
+                        <button
                             onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
                             className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
                             title="Emoji"
                         >
-                            <button
-    onClick={() =>
-        toast.success("Message scheduling coming soon!")
-    }
-    className="btn btn-ghost btn-sm btn-square shrink-0"
-    title="Schedule Message"
->
-    <Clock className="w-4 h-4 text-base-content/50" />
-</button>
                             <Smile className="w-4 h-4" />
                         </button>
                         <textarea
@@ -661,6 +745,17 @@ const mediaMessages = messages.filter(
                     )
                 )}
             </div>
+
+            <ScheduleMessageModal
+                isOpen={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                receiverId={selectedUser?._id}
+                messageContent={{
+                    message: text,
+                    image: imageBase64,
+                    audio: audioBase64,
+                }}
+            />
         </div>
     )
 }
