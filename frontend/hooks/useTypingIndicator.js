@@ -24,34 +24,30 @@ export default function useTypingIndicator(receiverId) {
      * Prevents flood overflows by blocking outgoing keystroke events during active intervals.
      */
     const emitTyping = useCallback(() => {
-        const socket = getSocket();
+    const socket = getSocket();
         
         // Prevent event execution if socket links or receiver targets are unmapped
         if (!socket || !receiverId) return;
 
-        // NETWORK OPTIMIZATION: If we haven't announced typing status within this buffer window, send it!
-        if (!isTypingEmitRef.current) {
-            socket.emit("typing", { receiverId });
-            isTypingEmitRef.current = true; // Lock the throttle gates
-        }
+    if (!socket || !receiverId) return;
 
-        // Clear active stop-typing timeouts to recalculate inactivity windows dynamically
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
+    const now = Date.now();
 
-        // Establish debounce timers to safely detect when user input halts completely
-        const now = Date.now();
-        if (now - lastEmitRef.current > 1000) {
-            socket.emit("typing", { receiverId });
-            lastEmitRef.current = now;
-        }
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            socket.emit("stopTyping", { receiverId });
-            isTypingEmitRef.current = false; // Open the throttle gates for subsequent loops
-        }, 2500); // 2.5-second inactivity window
-    }, [receiverId]);
+    if (now - lastEmitRef.current > 1000) {
+        socket.emit("typing", { receiverId });
+        lastEmitRef.current = now;
+        isTypingEmitRef.current = true;
+    }
+
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+        socket.emit("stopTyping", { receiverId });
+        isTypingEmitRef.current = false;
+    }, 2500);
+}, [receiverId]);
 
     /**
      * UNMOUNT CLEANUP

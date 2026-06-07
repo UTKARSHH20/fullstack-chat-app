@@ -59,7 +59,7 @@ export default function ProfilePage() {
             <div className="bg-base-100 rounded-2xl shadow-xl overflow-hidden w-full max-w-3xl">
                 <div className="relative h-40 bg-gradient-to-r from-primary to-secondary">
                     <div className="absolute inset-0 flex items-end px-8 pb-4">
-                        <div className="avatar -mb-16 border-4 border-base-100 rounded-full shadow-lg">
+                        <div className="avatar -mb-10 border-4 border-base-100 rounded-full shadow-lg">
                             <div className="w-32 rounded-full bg-base-300 relative">
                                 {previewImage ? (
                                     <img
@@ -87,13 +87,13 @@ export default function ProfilePage() {
                         </div>
                         <div className="ml-4 mb-4">
                             <h2 className="text-3xl font-bold text-white">{user?.name}</h2>
-                            <p className="text-base-100/80">{user?.email}</p>
+                            <p className="text-white">{user?.email}</p>
                         </div>
                     </div>
                 </div>
 
                 <div className="p-8">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex justify-between items-center mb-6 mt-8">
                         <h3 className="text-2xl font-bold">Profile Information</h3>
                         <div className="flex gap-2">
                             {!isEditing ? (

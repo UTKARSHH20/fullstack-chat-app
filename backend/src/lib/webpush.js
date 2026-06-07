@@ -3,10 +3,15 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:test@example.com",
+if (
+  process.env.VAPID_PUBLIC_KEY &&
+  process.env.VAPID_PRIVATE_KEY
+) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT,
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
-);
+  );
+}
 
 export default webpush;
