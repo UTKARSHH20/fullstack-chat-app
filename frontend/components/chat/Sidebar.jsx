@@ -5,7 +5,6 @@ import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
-import { Search, PenSquare, MonitorSmartphone, Palette } from "lucide-react"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
