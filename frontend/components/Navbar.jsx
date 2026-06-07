@@ -25,11 +25,13 @@ const Navbar = () => {
                 <Link to="/" className="flex items-center gap-2 group">
                     <img
                       src="/logo3.png"
-                      alt="ChatterBox Logo"
+                      alt="Chatter-Box"
+                      width="40"
+                      height="40"
                       className="w-10 h-10 object-contain"
                     />
                     <span className="text-lg font-bold tracking-tight">
-                       Chatter-box
+                       Chatter-Box
                     </span>
                 </Link>
             </div>
