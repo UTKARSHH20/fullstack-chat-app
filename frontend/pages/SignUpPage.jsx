@@ -99,8 +99,8 @@ export default function SignUpPage() {
                 </div>
             </div>
 
-            <div className="flex flex-col justify-center items-center p-8 sm:p-12 bg-base-100">
-                <div className="w-full max-w-md space-y-8">
+            <div className="flex flex-col items-center p-8 sm:p-12 bg-base-100 h-screen overflow-y-auto">
+                <div className="w-full max-w-md space-y-8 py-8">
                     <div className="text-center mb-8">
                         <div className="flex flex-col items-center gap-3 group">
                             <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shadow-lg group-hover:bg-primary/20 transition-colors">

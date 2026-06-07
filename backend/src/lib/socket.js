@@ -38,28 +38,35 @@ io.use((socket, next) => {
 
 const userSocketMap = {};
 
-export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
+export const getReceiverSocketIds = (userId) => 
+    userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
-const getActiveContacts = async (userId) => {
-    try {
-        const [senders, receivers] = await Promise.all([
-            Message.distinct("senderId", { receiverId: userId }),
-            Message.distinct("receiverId", { senderId: userId })
-        ]);
-        const merged = [...senders, ...receivers].map(id => id.toString());
-        return [...new Set(merged)];
-    } catch (err) {
-        console.error("Error fetching active contacts:", err);
-        return [];
+// Keep track of the last time MongoDB was updated for a user to avoid connection churn overhead
+const lastDbUpdateCache = new Map();
+const THROTTLE_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+async function throttledUpdateLastSeen(userId) {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId);
+
+    if (!lastUpdate || (now - lastUpdate > THROTTLE_TIME)) {
+        lastDbUpdateCache.set(userId, now);
+        try {
+            await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+        } catch (err) {
+            console.error(`[DB Error] Failed to update lastSeen for ${userId}:`, err);
+        }
     }
-};
+}
 
-io.on("connection", async (socket) => {
+io.on("connection", (socket) => {
     const userId = socket.userId;
 
-    if (userId) {
-        // Check if this is their very first tab/device connecting before adding the new socket
-        const isFirstSession = !userSocketMap[userId] || userSocketMap[userId].length === 0;
+    // Early guard return: Prevent state pollution / memory leaks from unauthenticated sockets
+    if (!userId) {
+        console.warn(`[Socket.io] Connection rejected: Missing userId for socket ${socket.id}`);
+        return socket.disconnect(true);
+    }
 
         if (!userSocketMap[userId]) userSocketMap[userId] = [];
         userSocketMap[userId].push(socket.id);
@@ -140,27 +147,17 @@ Message.distinct("senderId", { receiverId: userId, status: "sent" })
     });
 
     socket.on("disconnect", async () => {
-        if (userId) {
-            userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
-            
-            if (userSocketMap[userId].length === 0) {
-                delete userSocketMap[userId];
-                try {
-                    await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-                    
-                    // Notify only their active contacts that they went offline
-                    const originalContacts = await getActiveContacts(userId);
-                    originalContacts.forEach(contactId => {
-                        const contactSockets = getReceiverSocketIds(contactId);
-                        contactSockets.forEach(s => {
-                            io.to(s).emit("userStatusChanged", { userId, status: "offline" });
-                        });
-                    });
-                } catch (err) {
-                    console.error(err);
-                }
-            }
+        userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
+        
+        if (userSocketMap[userId].length === 0) {
+            delete userSocketMap[userId];
+            // Update lastSeen when they completely disconnect (if not updated recently)
+            await throttledUpdateLastSeen(userId);
+            // Clean up our local cache memory since the user is fully offline
+            lastDbUpdateCache.delete(userId);
         }
+        
+        io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
 }); 
 
