@@ -9,4 +9,14 @@ export const generateTokenAndSetCookie = (userId, res) => {
         secure: process.env.NODE_ENV !== "development" || process.env.FORCE_SECURE_COOKIES === "true" // GSSoC Issue #49 Fix
     });
     return token;
-}   
+};
+
+/**
+ * Wraps an async function to catch errors and pass them to the next middleware.
+ * Eliminates the need for try/catch blocks in every controller.
+ */
+export const catchAsync = (fn) => {
+    return (req, res, next) => {
+        fn(req, res, next).catch(next);
+    };
+};

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom"
-import { MessageSquare, Settings, User, LogOut, Sun, Moon, Star } from "lucide-react"
+import { Activity, MessageSquare, Settings, User, LogOut, Sun, Moon, Star, Clock } from "lucide-react"
 import useAuthStore from "../src/store/useAuthStore"
 import useThemeStore from "../src/store/useThemeStore"
 
@@ -20,7 +20,7 @@ const Navbar = () => {
     }
 
     return (
-        <div className="navbar bg-base-100 border-b border-base-200 px-4 sticky top-0 z-50 backdrop-blur-sm bg-base-100/90 shadow-sm">
+        <div className="navbar border-b border-base-200 px-4 sticky top-0 z-50 backdrop-blur-sm bg-base-100/90 shadow-sm">
             <div className="flex-1">
                 <Link to="/" className="flex items-center gap-2 group">
                     <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -47,11 +47,19 @@ const Navbar = () => {
 
                 {authUser && (
                     <>
+                        <Link to="/insights" id="nav-insights" className="btn btn-ghost btn-sm gap-2">
+                            <Activity className="w-4 h-4" />
+                            <span className="hidden sm:inline">Insights</span>
+                        </Link>
+                        <Link to="/scheduled" id="nav-scheduled" className="btn btn-ghost btn-sm gap-2">
+                            <Clock className="w-4 h-4" />
+                            <span className="hidden sm:inline">Scheduled</span>
+                        </Link>
                         <Link to="/saved" id="nav-saved" className="btn btn-ghost btn-sm gap-2">
-                        <Star className="w-4 h-4" />
-                        <span className="hidden sm:inline">Saved</span>
-                    </Link>
-                    <Link to="/settings" id="nav-settings" className="btn btn-ghost btn-sm gap-2">
+                            <Star className="w-4 h-4" />
+                            <span className="hidden sm:inline">Saved</span>
+                        </Link>
+                        <Link to="/settings" id="nav-settings" className="btn btn-ghost btn-sm gap-2">
                             <Settings className="w-4 h-4" />
                             <span className="hidden sm:inline">Settings</span>
                         </Link>

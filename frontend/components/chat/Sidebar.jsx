@@ -5,6 +5,7 @@ import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
+import { Search, PenSquare, MonitorSmartphone, Palette } from "lucide-react"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -43,9 +44,19 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
         return () => socket.off("getOnlineUsers")
     }, [])
 
+    const totalUnread = users.reduce(
+    (sum, user) => sum + (user.unreadCount || 0),
+    0
+)
+
+const activeChats = onlineUsers.length
+
     const filtered = users.filter(u =>
-    (selectedFolder === "All" ||
-        u.folder === selectedFolder) &&
+    (
+        selectedFolder === "All" ||
+        (selectedFolder === "Unread" && u.unreadCount > 0) ||
+        u.folder === selectedFolder
+    ) &&
     u.name.toLowerCase().includes(search.toLowerCase())
 )
 
@@ -66,10 +77,12 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
         )}
     </h2>
 
-    <p className="text-[10px] text-base-content/40">
-        Backup status: Not configured
-    </p>
-</div>
+ <p
+    className="text-[10px] text-base-content/40 underline decoration-dotted cursor-help"
+    title="Your chat backup is not set up. Go to Settings to configure it."
+>
+    Backup status: Not configured
+</p>
                     <div className="flex items-center gap-1">
     <button
         className="btn btn-ghost btn-sm btn-circle"
@@ -100,7 +113,7 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
             </div>
 
             <div className="flex gap-2 px-3 py-2 border-b border-base-200 overflow-x-auto">
-    {["All", "Work", "Friends", "Archived"].map(folder => (
+    {["All", "Unread", "Work", "Friends", "Archived"].map(folder => (
         <button
             key={folder}
             onClick={() => setSelectedFolder(folder)}
@@ -113,6 +126,28 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
             {folder}
         </button>
     ))}
+</div>
+
+<div className="px-3 py-2 border-b border-base-200">
+    <div className="stats stats-vertical shadow w-full">
+        <div className="stat py-2">
+            <div className="stat-title text-xs">
+                Active Chats
+            </div>
+            <div className="stat-value text-lg">
+                {activeChats}
+            </div>
+        </div>
+
+        <div className="stat py-2">
+            <div className="stat-title text-xs">
+                Unread Messages
+            </div>
+            <div className="stat-value text-lg">
+                {totalUnread}
+            </div>
+        </div>
+    </div>
 </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -154,13 +189,31 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                         : "border-l-2 border-transparent"}
                                 `}
                             >
-                                <Avatar user={user} isOnline={isOnline} />
+                                <div
+    title={
+        isOnline
+            ? "Currently Online"
+            : user.lastSeen
+            ? `Last active: ${formatTime(user.lastSeen)}`
+            : "Offline"
+    }
+>
+    <Avatar user={user} isOnline={isOnline} />
+</div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1 min-w-0">
+    <div className="flex items-center gap-1">
     <p className="font-medium text-sm truncate">
         {user.name}
     </p>
+
+    {folder === "Archived" && (
+        <span className="badge badge-warning badge-xs">
+            Archived
+        </span>
+    )}
+</div>
 
     <Palette
         className="w-3 h-3 text-primary shrink-0"
@@ -173,34 +226,46 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
                                             </span>
                                         )}
                                     </div>
+                                    
                                     <div className="flex items-center justify-between">
-                                        {typingUsers.includes(user._id) ? (
-                                            <div className="flex items-center gap-1">
-    <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-    <p className="text-xs text-success font-bold truncate">
-        typing...
-    </p>
+    {folder === "Archived" ? (
+        <p className="text-xs text-warning truncate">
+            Archived Conversation
+        </p>
+    ) : typingUsers.includes(user._id) ? (
+        <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+            <p className="text-xs text-success font-bold truncate">
+                typing...
+            </p>
+        </div>
+    ) : preview ? (
+        <p className="text-xs text-base-content/50 truncate">
+            {preview}
+        </p>
+    ) : (
+        <div className="flex items-center gap-1">
+            <span
+                className={`w-2 h-2 rounded-full ${
+                    isOnline ? "bg-success" : "bg-base-300"
+                }`}
+            />
+            <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+    {isOnline
+        ? "Active now"
+        : user.lastSeen
+        ? `Last active ${formatTime(user.lastSeen)}`
+        : "Offline"}
+</p>
+        </div>
+    )}
+
+    {user.unreadCount > 0 && (
+        <span className="badge badge-primary badge-xs ml-1 shrink-0">
+            {user.unreadCount > 99 ? "99+" : user.unreadCount}
+        </span>
+    )}
 </div>
-                                        ) : preview ? (
-                                            <p className="text-xs text-base-content/50 truncate">{preview}</p>
-                                        ) : (
-                                            <div className="flex items-center gap-1">
-    <span
-        className={`w-2 h-2 rounded-full ${
-            isOnline ? "bg-success" : "bg-base-300"
-        }`}
-    />
-    <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
-        {isOnline ? "Active now" : "Offline"}
-    </p>
-</div>
-                                        )}
-                                        {user.unreadCount > 0 && (
-                                            <span className="badge badge-primary badge-xs ml-1 shrink-0">
-                                                {user.unreadCount > 99 ? "99+" : user.unreadCount}
-                                            </span>
-                                        )}
-                                    </div>
                                 </div>
                             </button>
                         )

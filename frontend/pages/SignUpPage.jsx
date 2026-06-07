@@ -8,7 +8,7 @@ export default function SignUpPage() {
     const navigate = useNavigate()
     const { signup, googleLogin, isLoading } = useAuthStore()
     const [showPassword, setShowPassword] = useState(false)
-    const [formData, setFormData] = useState({ name: "", email: "", password: "" })
+    const [formData, setFormData] = useState({name: "",email: "",password: "",confirmPassword: ""})
 
     const passwordStrength = [
         formData.password.length >= 8,
@@ -25,10 +25,8 @@ export default function SignUpPage() {
         const passwordRegex =
             /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$!%&*])[A-Za-z\d@#$!%&*]{8,}$/
 
-        if (!passwordRegex.test(formData.password)) {
-            toast.error(
-               "Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character."
-            )
+        if (formData.password !== formData.confirmPassword) {
+            toast.error("Passwords do not match")
             return
         }
 
@@ -99,8 +97,8 @@ export default function SignUpPage() {
                 </div>
             </div>
 
-            <div className="flex flex-col justify-center items-center p-8 sm:p-12 bg-base-100">
-                <div className="w-full max-w-md space-y-8">
+            <div className="flex flex-col items-center p-8 sm:p-12 bg-base-100 h-screen overflow-y-auto">
+                <div className="w-full max-w-md space-y-8 py-8">
                     <div className="text-center mb-8">
                         <div className="flex flex-col items-center gap-3 group">
                             <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shadow-lg group-hover:bg-primary/20 transition-colors">
@@ -152,18 +150,22 @@ export default function SignUpPage() {
                             <label className="label" htmlFor="signup-password">
                                 <span className="label-text font-medium">Password</span>
                                 <span className="label-text-alt text-base-content/40">
-                                   Strong password required
-                               </span>
+                                    Strong password required
+                                </span>
                             </label>
+
                             <label className="input input-bordered flex items-center gap-2 w-full">
                                 <Lock className="h-4 w-4 text-base-content/40 shrink-0" />
+
                                 <input
                                     id="signup-password"
                                     type={showPassword ? "text" : "password"}
                                     placeholder="••••••••"
                                     className="grow bg-transparent outline-none"
                                     value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, password: e.target.value })
+                                    }
                                     minLength={8}
                                     required
                                 />
@@ -174,47 +176,64 @@ export default function SignUpPage() {
                                     className="shrink-0"
                                     onClick={() => setShowPassword(!showPassword)}
                                 >
-                                    {showPassword
-                                        ? <EyeOff className="h-4 w-4 text-base-content/40 hover:text-base-content transition-colors" />
-                                        : <Eye className="h-4 w-4 text-base-content/40 hover:text-base-content transition-colors" />
-                                    }
+                                    {showPassword ? (
+                                        <EyeOff className="h-4 w-4 text-base-content/40 hover:text-base-content transition-colors" />
+                                    ) : (
+                                        <Eye className="h-4 w-4 text-base-content/40 hover:text-base-content transition-colors" />
+                                    )}
                                 </button>
                             </label>
 
                             <div className="mt-2 text-xs text-base-content/60">
-                               <p>Password must contain:</p>
-                               <ul className="list-disc ml-4 mt-1">
-                                <li>At least 8 characters</li>
-                                <li>One uppercase letter (A-Z)</li>
-                                <li>One lowercase letter (a-z)</li>
-                                <li>One number (0-9)</li>
-                                <li>One special character (@, #, $, !, %, &, *)</li>
-                               </ul>
+                                <p>Password must contain:</p>
+                                <ul className="list-disc ml-4 mt-1">
+                                    <li>At least 8 characters</li>
+                                    <li>One uppercase letter (A-Z)</li>
+                                    <li>One lowercase letter (a-z)</li>
+                                    <li>One number (0-9)</li>
+                                    <li>One special character (@, #, $, !, %, &, *)</li>
+                                </ul>
                             </div>
-
-                            {formData.password.length > 0 && (
-                                <div className="mt-2 space-y-1">
-                                    <div className="h-1.5 w-full bg-base-200 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full transition-all duration-300 ${passwordStrength < 2
-                                                    ? "w-1/4 bg-error"
-                                                    : passwordStrength < 4
-                                                       ? "w-3/4 bg-success"
-                                                       : "w-full bg-success"
-                                                }`}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-base-content/50">
-                                        {passwordStrength <= 2
-                                          ? "Weak Password"
-                                          : passwordStrength <= 4
-                                             ? "Good Password"
-                                             : "Strong Password ✓"}
-                                    </p>
-                                </div>
-                            )}
                         </div>
 
+                        <div className="form-control">
+                            <label className="label" htmlFor="signup-confirm-password">
+                                <span className="label-text font-medium">Confirm Password</span>
+                            </label>
+
+                            <label className="input input-bordered flex items-center gap-2 w-full">
+                                <Lock className="h-4 w-4 text-base-content/40 shrink-0" />
+
+                                <input
+                                    id="signup-confirm-password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="••••••••"
+                                    className="grow bg-transparent outline-none"
+                                    value={formData.confirmPassword}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            confirmPassword: e.target.value,
+                                        })
+                                    }
+                                    required
+                                />
+                            </label>
+
+                            {formData.confirmPassword && (
+                                <p
+                                    className={`text-xs mt-1 ${
+                                        formData.password === formData.confirmPassword
+                                            ? "text-success"
+                                            : "text-error"
+                                    }`}
+                                >
+                                    {formData.password === formData.confirmPassword
+                                        ? "Passwords match ✓"
+                                        : "Passwords do not match"}
+                                </p>
+                            )}
+                        </div>
                         <button
                             id="signup-submit"
                             type="submit"
