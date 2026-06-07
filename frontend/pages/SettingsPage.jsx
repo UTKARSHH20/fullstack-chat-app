@@ -223,6 +223,37 @@ export default function SettingsPage() {
                             <ToggleRow icon={notif.sounds ? Volume2 : VolumeX} label="Notification sounds" description="Play a sound for incoming messages" checked={notif.sounds} onChange={upNotif("sounds")} />
                             <div className="divider my-0 opacity-20" />
                             <ToggleRow icon={Monitor}     label="Desktop notifications"  description="Show browser notifications when minimised" checked={notif.desktop} onChange={upNotif("desktop")} />
+
+                            <div className="divider my-0 opacity-20" />
+
+<div className="flex items-center justify-between py-2">
+    <div className="flex items-center gap-3">
+        <Clock className="w-4 h-4 text-base-content/40" />
+        <div>
+            <p className="text-sm font-medium">Mute Notifications</p>
+            <p className="text-xs text-base-content/40">
+                Temporarily disable all notifications
+            </p>
+        </div>
+    </div>
+    {notif.muteDuration !== "0" && (
+    <div className="mt-3 alert alert-warning py-2 text-sm">
+        Notifications are currently muted ({notif.muteDuration})
+    </div>
+)}
+
+    <select
+        className="select select-bordered select-sm"
+        value={notif.muteDuration}
+        onChange={(e) => updateNotification("muteDuration", e.target.value)}
+    >
+        <option value="0">Off</option>
+        <option value="30m">30 Minutes</option>
+        <option value="1h">1 Hour</option>
+        <option value="24h">24 Hours</option>
+        <option value="forever">Forever</option>
+    </select>
+</div>
                         </div>
                     </Section>
 

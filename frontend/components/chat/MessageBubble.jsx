@@ -10,6 +10,7 @@ const formatTime = (d) =>
 export default function MessageBubble({ msg, isMine, showTime, selectedUser, isOnline, authUser, onContextMenu, onTouchStart, onTouchEnd, onReact }) {
 
     const [showTranslation, setShowTranslation] = useState(false)
+    const [selectedImage, setSelectedImage] = useState(null)
 
     const getTranslatedText = (text) => {
     const translations = {
@@ -54,19 +55,39 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
         <span>Pinned Message</span>
     </div>
 )}
-                    {msg.replyTo?.message && <ReplyPreview replyTo={msg.replyTo} isMine={isMine} />}
+                    {msg.replyTo?.message && (
+    <>
+        <div className="text-[10px] text-info font-semibold mb-1">
+            🧵 Reply Thread
+        </div>
+
+        <ReplyPreview
+            replyTo={msg.replyTo}
+            isMine={isMine}
+        />
+
+        <div className="text-[10px] text-primary cursor-pointer hover:underline mb-1">
+    Jump to parent message
+</div>
+
+        <div className="text-[10px] text-primary cursor-pointer hover:underline mb-1">
+            Jump to parent message
+        </div>
+    </>
+)}
                     {msg.starred && (
                         <div className="flex items-center gap-1 text-[10px] text-warning font-semibold mb-1">
                             ⭐ Starred
                             </div>
                         )}
                     {msg.image && (
-                        <img
-                            src={msg.image} alt="attachment"
-                            className="max-w-full rounded-lg mb-1 cursor-pointer"
-                            onClick={() => window.open(msg.image, "_blank")}
-                        />
-                    )}
+    <img
+        src={msg.image}
+        alt="attachment"
+        className="max-w-full rounded-lg mb-1 cursor-pointer hover:opacity-90 transition"
+        onClick={() => setSelectedImage(msg.image)}
+    />
+)}
                     
 {msg.audio && (
     <>
@@ -91,12 +112,12 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                 : String(msg.message)}
         </p>
 
-        <button
-            onClick={() =>
-                setShowTranslation(!showTranslation)
-            }
-            className="flex items-center gap-1 text-[10px] text-info mt-1"
-        >
+        <button 
+    key={emoji}
+    title={`${count} reaction${count > 1 ? "s" : ""}`}
+    onClick={(e) => { e.stopPropagation(); onReact(msg._id, emoji); }}
+    className={`text-xs px-1.5 py-0.5 rounded-full shadow-sm hover:scale-110 hover:shadow-md transition-all ${isMine ? "bg-primary-focus text-primary-content border border-white/20" : "bg-base-100 text-base-content border border-base-300"}`}
+>
             <Languages className="w-3 h-3" />
             {showTranslation
                 ? "Show Original"
