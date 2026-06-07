@@ -139,16 +139,14 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         }
         return () => unsubscribeFromMessages()
     }, [selectedUser, getMessages, subscribeToMessages, unsubscribeFromMessages])
-
 // Fix: Update browser tab title when conversation changes
-useEffect(() => {
     useEffect(() => {
-    if (selectedUser) {
+         if (selectedUser) {
         document.title = `${selectedUser.name} | chatter-box`
-    } else {
+        } else {
         document.title = "chatter-box – Real-time Messaging"
     }
-    return () => {
+        return () => {
         document.title = "chatter-box – Real-time Messaging"
     }
 }, [selectedUser])
