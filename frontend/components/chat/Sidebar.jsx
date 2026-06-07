@@ -44,11 +44,11 @@ export default function Sidebar({ selectedUser, onSelectUser, isMobileHidden }) 
     }, [])
 
     // Fix: derive folder client-side since backend does not return folder field
-    const getUserFolder = (user) => {
-        if (user.folder) return user.folder
-        return user.name.charCodeAt(0) % 2 === 0 ? "Work" : "Friends"
-    }
-
+        const FOLDERS = ["Work", "Friends", "Archived"]
+const getUserFolder = (user) => {
+    if (user.folder) return user.folder
+    return FOLDERS[user.name.charCodeAt(0) % 3]
+}
     const filtered = users.filter(u => {
         const folder = getUserFolder(u)
         const matchesFolder = selectedFolder === "All" || folder === selectedFolder
