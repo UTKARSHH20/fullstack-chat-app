@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import {
-    Image, Send, X, MessageSquare,
-    ArrowLeft, Smile, Mic, Square,
-    Loader2, Phone, Video, Trash2, Search
+    Image, Images, Send, X, MessageSquare,
+    ArrowLeft, Smile, Mic, Square,Loader2, 
+    Phone, Video, Trash2,Search, FileText,
+    NotebookPen, BarChart3, Sparkles, PenTool, Compass
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
 import useChatStore from "../../src/store/useChatStore"
 import useCallStore from "../../src/store/useCallStore"
+import useBookmarkStore from "../../src/store/useBookmarkStore"
 import useRecording from "../../hooks/useRecording"
 import useTypingIndicator from "../../hooks/useTypingIndicator"
 import useContextMenu from "../../hooks/useContextMenu"
@@ -16,6 +18,7 @@ import ContextMenu from "./ContextMenu"
 import ReplyBar from "./ReplyBar"
 import EmojiPicker from "./EmojiPicker"
 import MessageBubble from "./MessageBubble"
+import ScheduleMessageModal from "./ScheduleMessageModal"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
@@ -42,6 +45,11 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     } = useChatStore()
     const { authUser, onlineUsers } = useAuthStore()
     const { startOutgoingCall } = useCallStore()
+    const bookmarks = useBookmarkStore((state) => state.bookmarks)
+    const addBookmark = useBookmarkStore((state) => state.addBookmark)
+    const removeBookmark = useBookmarkStore((state) => state.removeBookmark)
+    const pendingBookmarkTarget = useBookmarkStore((state) => state.pendingBookmarkTarget)
+    const clearPendingBookmarkTarget = useBookmarkStore((state) => state.clearPendingBookmarkTarget)
 
     const [text, setText] = useState("")
     const [imagePreview, setImagePreview] = useState(null)
@@ -49,11 +57,19 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [sending, setSending] = useState(false)
     const [replyTo, setReplyTo] = useState(null)
     const [showEmoji, setShowEmoji] = useState(false)
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [showSpamWarning, setShowSpamWarning] = useState(false)
+    const [showInsights, setShowInsights] = useState(false)
+    const [showPoll, setShowPoll] = useState(false)
+    const [showNotes, setShowNotes] = useState(false)
+    const [sharedNotes, setSharedNotes] = useState("")
+    const [showGallery, setShowGallery] = useState(false)
 
     // Search state
     const [searchOpen, setSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [searchResults, setSearchResults] = useState([])
+    const [recentSearches, setRecentSearches] = useState([])
 
     // Debounced search trigger
     useEffect(() => {
@@ -62,11 +78,36 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             return;
         }
         const timer = setTimeout(async () => {
-            const results = await searchTextMessages(selectedUser._id, searchQuery);
-            setSearchResults(results || []);
-        }, 300);
+    const results = await searchTextMessages(
+        selectedUser._id,
+        searchQuery
+    );
+
+    setSearchResults(results || []);
+
+    const updatedSearches = [
+        searchQuery,
+        ...recentSearches.filter(
+            item => item !== searchQuery
+        )
+    ].slice(0, 5);
+
+    setRecentSearches(updatedSearches);
+
+    localStorage.setItem(
+        "recentSearches",
+        JSON.stringify(updatedSearches)
+    );
+}, 300);
         return () => clearTimeout(timer);
     }, [searchQuery, selectedUser?._id]);
+    useEffect(() => {
+    const savedSearches = JSON.parse(
+        localStorage.getItem("recentSearches") || "[]"
+    );
+
+    setRecentSearches(savedSearches);
+}, []);
 
     const scrollToMessage = (msgId) => {
         const msgElement = document.getElementById(`msg-${msgId}`);
@@ -102,6 +143,13 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     }, [selectedUser, getMessages, subscribeToMessages, unsubscribeFromMessages])
 
     useEffect(() => {
+        if (!pendingBookmarkTarget || !selectedUser || messages.length === 0) return
+        if (selectedUser._id !== pendingBookmarkTarget.chatId) return
+        scrollToMessage(pendingBookmarkTarget.messageId)
+        clearPendingBookmarkTarget()
+    }, [pendingBookmarkTarget, selectedUser, messages.length, clearPendingBookmarkTarget])
+
+    useEffect(() => {
         if (selectedUser?._id && messages.length > 0) {
             const hasUnseen = messages.some(m => m.senderId === selectedUser._id && m.status !== "seen");
             if (hasUnseen) markMessagesAsSeen(selectedUser._id);
@@ -134,6 +182,32 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             })
         }
     }, [hasMore, isLoadingMore, selectedUser, loadMoreMessages])
+
+    const handleBookmark = () => {
+        const message = contextMenu.message
+        if (!message) return
+
+        const currentBookmark = bookmarks.some((item) => item.id === message._id)
+        if (currentBookmark) {
+            removeBookmark(message._id)
+            toast.success("Bookmark removed")
+        } else {
+            const chatId = message.senderId === authUser._id ? message.receiverId : message.senderId
+            addBookmark({
+                id: message._id,
+                chatId,
+                senderId: message.senderId,
+                senderName: message.senderId === authUser._id ? authUser.name : selectedUser?.name || "Unknown",
+                content: message.message || "",
+                image: message.image || null,
+                audio: message.audio || null,
+                createdAt: message.createdAt,
+                bookmarkedAt: new Date().toISOString(),
+            })
+            toast.success("Message bookmarked")
+        }
+        closeMenu()
+    }
 
     const handleReply = () => { setReplyTo(contextMenu.message); closeMenu() }
     const handleCopy = () => {
@@ -182,7 +256,16 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     }
 
     const handleTyping = (e) => {
-        setText(e.target.value)
+        const value = e.target.value
+setText(value)
+
+const suspiciousWords = ["spam", "scam", "fake", "hack"]
+
+setShowSpamWarning(
+    suspiciousWords.some(word =>
+        value.toLowerCase().includes(word)
+    )
+)
         // Auto-resize textarea up to ~4 lines
         const ta = textareaRef.current
         if (ta) {
@@ -197,18 +280,114 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     }
 
     const isOnline = selectedUser && onlineUsers.includes(selectedUser._id)
+    const totalMessages = messages.length
+
+const myMessages = messages.filter(
+    msg => msg.senderId === authUser?._id
+).length
+
+const receivedMessages =
+    totalMessages - myMessages
+
+const mediaMessages = messages.filter(
+    msg => msg.image || msg.audio
+).length
+    const sharedMedia = messages.filter(msg => msg.image)
 
     if (!selectedUser) return (
-        <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-200 gap-4`}>
-            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="w-10 h-10 text-primary/50" />
+    <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-100 transition-colors duration-300`}>
+        <div className="w-full h-full flex-1 text-base-content flex flex-col items-center justify-start py-6 px-6 font-sans antialiased overflow-y-auto selection:bg-primary/20">
+      
+            {/* --- TOP STATUS BAR --- */}
+            <div className="w-full max-w-3xl flex justify-between items-center text-[11px] font-mono tracking-widest text-base-content/40 px-2">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-sm shadow-primary/50"></span>
+                    SESSION • NEW
+                </div>
+                {/* Fixed the crash by using a safe optional check or inline handler */}
+                <button 
+                    onClick={() => typeof onNewChat === 'function' ? onNewChat() : toast.success("Starting a fresh session...")} 
+                    className="hover:text-primary transition-colors cursor-pointer text-base-content/60"
+                >
+                    + New chat
+                </button>
             </div>
-            <div className="text-center">
-                <h3 className="font-bold text-lg">Select a conversation</h3>
-                <p className="text-base-content/40 text-sm mt-1">Choose someone from the sidebar to start chatting</p>
+
+            {/* --- CENTER HERO SECTION --- */}
+            <div className="w-full max-w-2xl flex flex-col items-center text-center my-auto py-4">
+        
+                {/* Glow & Spark Logo */}
+                <div className="relative mb-8 flex items-center justify-center">
+                    <div className="absolute w-28 h-28 bg-primary/[0.04] rounded-full blur-2xl"></div>
+                    <div className="border border-base-content/10 bg-base-content/[0.02] p-4 rounded-full backdrop-blur-sm">
+                        <Sparkles className="w-6 h-6 text-primary/90 stroke-[1.25]" />
+                    </div>
+                </div>
+
+                {/* Text Headers */}
+                <div className="space-y-4 mb-12">
+                    <p className="text-[10px] font-mono tracking-[0.25em] text-primary/70 uppercase">
+                        — LUMEN • YOUR EVENING COMPANION —
+                    </p>
+          
+                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-base-content">
+                        Late night thoughts?
+                    </h1>
+                    <h2 className="text-3xl md:text-4xl font-bold italic tracking-tight text-primary/80 font-serif">
+                        What's on your mind?
+                    </h2>
+          
+                    <p className="text-base-content/60 text-xs md:text-sm max-w-md mx-auto pt-2 leading-relaxed">
+                        A quiet place to think out loud, draft something good, or sketch the next idea —{" "}
+                        <span className="text-base-content/40 italic">without the noise.</span>
+                    </p>
+                </div>
+
+                {/* --- GRID SUGGESTIONS CARDS --- */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full text-left">
+          
+                    {/* Card 1: WRITE */}
+                    <div className="bg-base-200/50 border border-base-content/5 hover:border-primary/30 p-4 rounded-xl flex gap-3.5 cursor-pointer transition-all duration-300 hover:bg-base-200 group">
+                        <div className="bg-base-300/60 p-2.5 h-fit rounded-lg border border-base-content/5 text-primary/70 group-hover:text-primary transition-colors">
+                            <PenTool className="w-4 h-4 stroke-[1.5]" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <span className="text-[9px] font-mono tracking-widest text-primary/70 uppercase block font-semibold">
+                                WRITE
+                            </span>
+                            <h3 className="font-bold text-sm text-base-content/90 tracking-wide">
+                                Draft a heartfelt thank-you note
+                            </h3>
+                            <p className="text-[11px] text-base-content/50 font-normal">
+                                for a mentor who changed my path
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Card 2: PLAN */}
+                    <div className="bg-base-200/50 border border-base-content/5 hover:border-primary/30 p-4 rounded-xl flex gap-3.5 cursor-pointer transition-all duration-300 hover:bg-base-200 group">
+                        <div className="bg-base-300/60 p-2.5 h-fit rounded-lg border border-base-content/5 text-primary/70 group-hover:text-primary transition-colors">
+                            <Compass className="w-4 h-4 stroke-[1.5]" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <span className="text-[9px] font-mono tracking-widest text-primary/70 uppercase block font-semibold">
+                                PLAN
+                            </span>
+                            <h3 className="font-bold text-sm text-base-content/90 tracking-wide">
+                                Design a 3-day Lisbon itinerary
+                            </h3>
+                            <p className="text-[11px] text-base-content/50 font-normal">
+                                slow mornings, golden hour walks
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
         </div>
-    )
+    </div>
+)
 
     return (
         <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col bg-base-100 min-w-0 h-full overflow-hidden`}>
@@ -254,6 +433,43 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     >
                         <Video className="w-5 h-5" />
                     </button>
+
+                    <button
+    onClick={() => setShowGallery(!showGallery)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showGallery
+            ? "text-primary"
+            : "text-base-content/70"
+    }`}
+    title="Media Gallery"
+>
+    <Images className="w-5 h-5" />
+</button>
+
+                    <button
+    onClick={() => setShowPoll(!showPoll)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showPoll ? "text-primary" : "text-base-content/70"
+    }`}
+    title="Polls"
+>
+    <BarChart3 className="w-5 h-5" />
+</button>
+                    <button
+    className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-primary transition-colors"
+    title="Generate Conversation Summary"
+>
+    <FileText className="w-5 h-5" />
+    <button
+    onClick={() => setShowNotes(!showNotes)}
+    className={`btn btn-ghost btn-circle btn-sm ${
+        showNotes ? "text-primary" : "text-base-content/70"
+    }`}
+    title="Shared Notes"
+>
+    <NotebookPen className="w-5 h-5" />
+</button>
+</button>
                 </div>
             </div>
 
@@ -295,7 +511,61 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 </div>
             )}
 
+            {showGallery && (
+    <div className="border-b border-base-200 bg-base-100 p-3">
+        <h3 className="font-semibold text-sm mb-3">
+            Shared Media Gallery
+        </h3>
+
+        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+            {sharedMedia.map(media => (
+                <img
+                    key={media._id}
+                    src={media.image}
+                    alt="shared media"
+                    className="rounded-lg object-cover h-24 w-full cursor-pointer hover:scale-105 transition"
+                    onClick={() =>
+                        window.open(media.image, "_blank")
+                    }
+                />
+            ))}
+        </div>
+
+        {sharedMedia.length === 0 && (
+            <p className="text-xs text-base-content/50">
+                No shared media found
+            </p>
+        )}
+    </div>
+)}
+
             <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1 overscroll-contain">
+                {showNotes && (
+    <div className="border-b border-base-200 p-3 bg-base-200">
+        <div className="flex justify-between items-center mb-2">
+            <h3 className="font-semibold text-sm">
+                Collaborative Notes
+            </h3>
+
+            <span className="badge badge-primary badge-sm">
+                Shared
+            </span>
+        </div>
+
+        <textarea
+            value={sharedNotes}
+            onChange={(e) =>
+                setSharedNotes(e.target.value)
+            }
+            placeholder="Write shared notes here..."
+            className="textarea textarea-bordered w-full h-32"
+        />
+
+        <div className="text-xs text-base-content/50 mt-2">
+            Changes are visible to all participants
+        </div>
+    </div>
+)}
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="loading loading-spinner loading-md text-primary" />
@@ -339,11 +609,32 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                 <div ref={bottomRef} />
             </div>
 
-            <ContextMenu menu={contextMenu} onClose={closeMenu} onReply={handleReply} onCopy={handleCopy} onDelete={handleDelete} onReact={handleReact} />
+            <ContextMenu
+                menu={contextMenu}
+                onClose={closeMenu}
+                onReply={handleReply}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+                onReact={handleReact}
+                onBookmark={handleBookmark}
+                isBookmarked={bookmarks.some((item) => item.id === contextMenu.message?._id)}
+            />
 
             {replyTo && (
                 <ReplyBar replyTo={replyTo} authUser={authUser} selectedUser={selectedUser} onCancel={() => setReplyTo(null)} />
             )}
+
+            <div className="px-4 py-2 flex flex-wrap gap-2">
+    {["👍 Sounds good", "Thanks!", "I'll check", "Okay"].map((reply) => (
+        <button
+            key={reply}
+            onClick={() => setText(reply)}
+            className="btn btn-xs btn-outline"
+        >
+            {reply}
+        </button>
+    ))}
+</div>
 
             {imagePreview && (
                 <div className="px-4 pb-2">
@@ -356,6 +647,12 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     </div>
                 </div>
             )}
+
+            {showSpamWarning && (
+    <div className="mx-3 mb-2 alert alert-warning py-2 text-sm">
+        ⚠️ This message may contain potentially harmful or spam-related content.
+    </div>
+)}
 
             <div className="px-3 py-3 border-t border-base-200 flex items-end gap-2 relative shrink-0 safe-bottom">
                 {showEmoji && (
@@ -408,6 +705,14 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                         </button>
                         <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleImage} />
                         <button
+                            onClick={() => setShowScheduleModal(true)}
+                            disabled={!text.trim() && !imageBase64 && !audioBase64}
+                            className="btn btn-ghost btn-sm btn-square shrink-0"
+                            title="Schedule Message"
+                        >
+                            <Clock className="w-4 h-4 text-base-content/50" />
+                        </button>
+                        <button
                             onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
                             className={`btn btn-ghost btn-sm btn-square shrink-0 ${showEmoji ? "text-primary" : "text-base-content/50"}`}
                             title="Emoji"
@@ -440,6 +745,17 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
                     )
                 )}
             </div>
+
+            <ScheduleMessageModal
+                isOpen={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                receiverId={selectedUser?._id}
+                messageContent={{
+                    message: text,
+                    image: imageBase64,
+                    audio: audioBase64,
+                }}
+            />
         </div>
     )
 }

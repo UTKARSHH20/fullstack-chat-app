@@ -25,6 +25,7 @@ export function validateSignup(req, res, next) {
 
 export function validateLogin(req, res, next) {
     const { email, password } = req.body;
+    // GSSoC Issue #61 Fix
     if (typeof email !== "string" || typeof password !== "string") {
         return res.status(400).json({ message: "Email and password must be strings" });
     }
