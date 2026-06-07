@@ -9,6 +9,7 @@ import useSettingsStore from "../src/store/useSettingsStore"
 import useAuthStore from "../src/store/useAuthStore"
 import StatusMoodSelector from "../components/StatusMoodSelector"
 import ListeningStatusSelector from "../components/ListeningStatusSelector"
+import LiveActivityBadge from "../components/LiveActivityBadge"
 import toast from "react-hot-toast"
 
 const THEMES = [
@@ -88,6 +89,7 @@ export default function SettingsPage() {
     const [selectedTrack, setSelectedTrack] = useState(authUser?.currentTrack || "")
     const [selectedArtist, setSelectedArtist] = useState(authUser?.currentArtist || "")
     const [listeningEnabled, setListeningEnabled] = useState(authUser?.isListening || false)
+    const [shareActivity, setShareActivity] = useState(authUser?.shareActivity ?? true)
 
     useEffect(() => {
         setSelectedMood(authUser?.statusMood || null)
@@ -97,6 +99,7 @@ export default function SettingsPage() {
         setSelectedTrack(authUser?.currentTrack || "")
         setSelectedArtist(authUser?.currentArtist || "")
         setListeningEnabled(authUser?.isListening || false)
+        setShareActivity(authUser?.shareActivity ?? true)
     }, [authUser?.currentTrack, authUser?.currentArtist, authUser?.isListening])
 
     const handleMoodChange = async (mood) => {
@@ -142,6 +145,16 @@ export default function SettingsPage() {
             setSelectedTrack(previousTrack)
             setSelectedArtist(previousArtist)
             setListeningEnabled(previousEnabled)
+        }
+    }
+
+    const handleShareActivityToggle = async (checked) => {
+        const prev = shareActivity
+        setShareActivity(checked)
+        try {
+            await useAuthStore.getState().updateActivitySettings(checked)
+        } catch {
+            setShareActivity(prev)
         }
     }
 
@@ -398,6 +411,8 @@ export default function SettingsPage() {
                             <ToggleRow icon={Clock} label="Last seen"             description="Show when you were last online"          checked={priv.lastSeen} onChange={upPriv("lastSeen")} />
                             <div className="divider my-0 opacity-20" />
                             <ToggleRow icon={priv.photo ? Eye : EyeOff} label="Profile photo" description="Allow others to see your picture" checked={priv.photo}    onChange={upPriv("photo")} />
+                            <div className="divider my-0 opacity-20" />
+                            <ToggleRow icon={Music} label="Live Activity" description="Share your current in-app activity with contacts" checked={shareActivity} onChange={handleShareActivityToggle} />
                         </div>
                     </Section>
 

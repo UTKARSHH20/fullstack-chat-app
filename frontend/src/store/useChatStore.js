@@ -352,6 +352,48 @@ const useChatStore = create((set, get) => ({
                     : state.selectedUser,
             }));
         });
+        socket.on("activityStarted", ({ userId, currentActivity }) => {
+            const authUser = useAuthStore.getState().authUser;
+            if (authUser?._id === userId) {
+                useAuthStore.setState({ authUser: { ...authUser, currentActivity } });
+            }
+            set((state) => ({
+                users: state.users.map((user) =>
+                    user._id === userId ? { ...user, currentActivity } : user
+                ),
+                selectedUser: state.selectedUser?._id === userId
+                    ? { ...state.selectedUser, currentActivity }
+                    : state.selectedUser,
+            }));
+        });
+        socket.on("activityUpdated", ({ userId, currentActivity }) => {
+            const authUser = useAuthStore.getState().authUser;
+            if (authUser?._id === userId) {
+                useAuthStore.setState({ authUser: { ...authUser, currentActivity } });
+            }
+            set((state) => ({
+                users: state.users.map((user) =>
+                    user._id === userId ? { ...user, currentActivity } : user
+                ),
+                selectedUser: state.selectedUser?._id === userId
+                    ? { ...state.selectedUser, currentActivity }
+                    : state.selectedUser,
+            }));
+        });
+        socket.on("activityEnded", ({ userId }) => {
+            const authUser = useAuthStore.getState().authUser;
+            if (authUser?._id === userId) {
+                useAuthStore.setState({ authUser: { ...authUser, currentActivity: "" } });
+            }
+            set((state) => ({
+                users: state.users.map((user) =>
+                    user._id === userId ? { ...user, currentActivity: "" } : user
+                ),
+                selectedUser: state.selectedUser?._id === userId
+                    ? { ...state.selectedUser, currentActivity: "" }
+                    : state.selectedUser,
+            }));
+        });
     },
 
     /**
@@ -367,6 +409,9 @@ const useChatStore = create((set, get) => ({
             socket.off("messagesSeen");
             socket.off("messagesDelivered");
             socket.off("messageReacted");
+            socket.off("activityStarted");
+            socket.off("activityUpdated");
+            socket.off("activityEnded");
         }
     },
 

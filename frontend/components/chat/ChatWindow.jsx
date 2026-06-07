@@ -22,6 +22,7 @@ import MessageBubble from "./MessageBubble"
 import SmartReplySuggestions from "./SmartReplySuggestions"
 import ScheduleMessageModal from "./ScheduleMessageModal"
 import ListeningStatusBadge from "../ListeningStatusBadge"
+import LiveActivityBadge from "../LiveActivityBadge"
 import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
@@ -454,6 +455,11 @@ const mediaMessages = messages.filter(
                             {getStatusMoodLabel(selectedUser.statusMood)}
                         </p>
                     ) : null}
+                    {selectedUser.shareActivity && selectedUser.currentActivity && (
+                        <div className="mt-1">
+                            <LiveActivityBadge currentActivity={selectedUser.currentActivity} compact />
+                        </div>
+                    )}
                     {selectedUser.isListening && (
                         <div className="mt-1">
                             <ListeningStatusBadge

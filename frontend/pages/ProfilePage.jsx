@@ -5,6 +5,7 @@ import useAuthStore from "../src/store/useAuthStore"
 import StatusMoodSelector from "../components/StatusMoodSelector"
 import ListeningStatusBadge from "../components/ListeningStatusBadge"
 import ListeningStatusSelector from "../components/ListeningStatusSelector"
+import LiveActivityBadge from "../components/LiveActivityBadge"
 
 export default function ProfilePage() {
     const { authUser: user, updateProfile, updateProfilePicture, updateStatusMood, updateListeningStatus, isLoading } = useAuthStore()
@@ -18,6 +19,7 @@ export default function ProfilePage() {
     const [selectedTrack, setSelectedTrack] = useState(user?.currentTrack || "")
     const [selectedArtist, setSelectedArtist] = useState(user?.currentArtist || "")
     const [listeningEnabled, setListeningEnabled] = useState(user?.isListening || false)
+    const [shareActivity, setShareActivity] = useState(user?.shareActivity ?? true)
 
     useEffect(() => {
         setSelectedMood(user?.statusMood || null)
@@ -27,6 +29,7 @@ export default function ProfilePage() {
         setSelectedTrack(user?.currentTrack || "")
         setSelectedArtist(user?.currentArtist || "")
         setListeningEnabled(user?.isListening || false)
+        setShareActivity(user?.shareActivity ?? true)
     }, [user?.currentTrack, user?.currentArtist, user?.isListening])
 
     const handleMoodChange = async (mood) => {
@@ -196,6 +199,16 @@ export default function ProfilePage() {
                         </div>
 
                         <div className="space-y-5">
+                            {user?.shareActivity === false && (
+                                <div className="alert alert-info shadow-sm">
+                                    <p className="text-sm">
+                                        Your live activity is hidden from contacts. Enable sharing in Settings to make it visible.
+                                    </p>
+                                </div>
+                            )}
+                            {user?.shareActivity && user?.currentActivity && (
+                                <LiveActivityBadge currentActivity={user.currentActivity} />
+                            )}
                             {user?.isListening && (
                                 <ListeningStatusBadge
                                     currentTrack={user.currentTrack}

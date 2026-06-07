@@ -66,6 +66,15 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    currentActivity: {
+        type: String,
+        default: "",
+        trim: true,
+    },
+    shareActivity: {
+        type: Boolean,
+        default: true,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

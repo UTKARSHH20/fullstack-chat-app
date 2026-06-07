@@ -5,6 +5,7 @@ import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
+import LiveActivityBadge from "../LiveActivityBadge"
 import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 import ListeningStatusBadge from "../ListeningStatusBadge"
 
@@ -221,6 +222,15 @@ const activeChats = onlineUsers.length
                                                 <p className="text-xs text-base-content/50 truncate mt-1">
                                                     {getStatusMoodLabel(user.statusMood)}
                                                 </p>
+                                            )}
+
+                                            {user.shareActivity && user.currentActivity && (
+                                                <div className="mt-2">
+                                                    <LiveActivityBadge
+                                                        currentActivity={user.currentActivity}
+                                                        compact
+                                                    />
+                                                </div>
                                             )}
 
                                             {user.isListening && (

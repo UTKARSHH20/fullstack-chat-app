@@ -131,6 +131,33 @@ const useAuthStore = create((set) => ({
         }
     },
 
+    updateActivity: async (currentActivity) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.patch("/users/activity", { currentActivity });
+            set({ authUser: res.data });
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Activity update failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
+    updateActivitySettings: async (shareActivity) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.patch("/users/activity-settings", { shareActivity });
+            set({ authUser: res.data });
+            toast.success("Live activity preference updated!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Activity settings update failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
     updateListeningStatus: async (listeningStatus) => {
         set({ isLoading: true });
         try {
