@@ -94,8 +94,8 @@ io.on("connection", (socket) => {
     if (!userSocketMap[userId]) userSocketMap[userId] = [];
     userSocketMap[userId].push(socket.id);
     
-    // Update lastSeen with a throttle mechanism to protect against connection churn
-    throttledUpdateLastSeen(userId);
+    // Also update lastSeen to 'now' when they connect
+    User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
 
     // Mark offline pending messages as delivered
     Message.updateMany(
@@ -112,10 +112,6 @@ io.on("connection", (socket) => {
     }).catch(console.error);
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
-
-    // Typing indicators (🔒 Protected)
-    socket.on("typing", async ({ receiverId }) => {
-        if (!(await canCommunicate(userId, receiverId))) return;
 
         const receiverSockets = getReceiverSocketIds(receiverId);
         receiverSockets.forEach(s => io.to(s).emit("userTyping", { senderId: userId }));
@@ -175,10 +171,11 @@ io.on("connection", (socket) => {
         
         if (userSocketMap[userId].length === 0) {
             delete userSocketMap[userId];
-            // Update lastSeen when they completely disconnect (if not updated recently)
-            await throttledUpdateLastSeen(userId);
-            // Clean up our local cache memory since the user is fully offline
-            lastDbUpdateCache.delete(userId);
+            try {
+                await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+            } catch (err) {
+                console.error(err);
+            }
         }
         
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
