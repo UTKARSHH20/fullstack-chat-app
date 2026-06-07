@@ -21,6 +21,7 @@ import EmojiPicker from "./EmojiPicker"
 import MessageBubble from "./MessageBubble"
 import SmartReplySuggestions from "./SmartReplySuggestions"
 import ScheduleMessageModal from "./ScheduleMessageModal"
+import ListeningStatusBadge from "../ListeningStatusBadge"
 import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
@@ -453,6 +454,14 @@ const mediaMessages = messages.filter(
                             {getStatusMoodLabel(selectedUser.statusMood)}
                         </p>
                     ) : null}
+                    {selectedUser.isListening && (
+                        <div className="mt-1">
+                            <ListeningStatusBadge
+                                currentTrack={selectedUser.currentTrack}
+                                currentArtist={selectedUser.currentArtist}
+                            />
+                        </div>
+                    )}
                     <p className={`text-xs ${isOnline ? "text-success font-medium" : "text-base-content/70"}`}>
                         {typingUsers.includes(selectedUser._id) ? (
                             <span className="text-success font-bold animate-pulse inline-block">typing...</span>

@@ -337,6 +337,21 @@ const useChatStore = create((set, get) => ({
                     : state.selectedUser,
             }));
         });
+
+        socket.on("listeningStatusUpdated", ({ userId, currentTrack, currentArtist, isListening }) => {
+            const authUser = useAuthStore.getState().authUser;
+            if (authUser?._id === userId) {
+                useAuthStore.setState({ authUser: { ...authUser, currentTrack, currentArtist, isListening } });
+            }
+            set((state) => ({
+                users: state.users.map((user) =>
+                    user._id === userId ? { ...user, currentTrack, currentArtist, isListening } : user
+                ),
+                selectedUser: state.selectedUser?._id === userId
+                    ? { ...state.selectedUser, currentTrack, currentArtist, isListening }
+                    : state.selectedUser,
+            }));
+        });
     },
 
     /**

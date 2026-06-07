@@ -46,6 +46,10 @@ export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
     io.emit("statusMoodUpdated", { userId, statusMood });
 };
 
+export const broadcastListeningStatusUpdate = ({ userId, currentTrack, currentArtist, isListening }) => {
+    io.emit("listeningStatusUpdated", { userId, currentTrack, currentArtist, isListening });
+};
+
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
  * Adjust the database query inside based on whether you track relationships via 

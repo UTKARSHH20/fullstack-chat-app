@@ -163,6 +163,9 @@ export const getUsers = catchAsync(async (req, res) => {
             profilePicture: partner.profilePicture,
             lastSeen: partner.lastSeen,
             statusMood: partner.statusMood || null,
+            currentTrack: partner.currentTrack || null,
+            currentArtist: partner.currentArtist || null,
+            isListening: Boolean(partner.isListening),
             lastMessage: {
                 _id: lastMessage._id,
                 message: lastMessage.message,
