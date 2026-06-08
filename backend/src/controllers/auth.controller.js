@@ -54,6 +54,9 @@ export const signup = catchAsync(async (req, res) => {
             email: user.email,
             profilePicture: user.profilePicture,
             statusMood: user.statusMood || null,
+            currentTrack: user.currentTrack || null,
+            currentArtist: user.currentArtist || null,
+            isListening: user.isListening || false,
         });
 });
 
@@ -84,6 +87,9 @@ export const login = catchAsync(async (req, res) => {
             email: user.email,
             profilePicture: user.profilePicture,
             statusMood: user.statusMood || null,
+            currentTrack: user.currentTrack || null,
+            currentArtist: user.currentArtist || null,
+            isListening: user.isListening || false,
         });
 });
 
@@ -137,6 +143,9 @@ export const googleAuth = catchAsync(async (req, res) => {
             email: user.email,
             profilePicture: user.profilePicture,
             statusMood: user.statusMood || null,
+            currentTrack: user.currentTrack || null,
+            currentArtist: user.currentArtist || null,
+            isListening: user.isListening || false,
         });
 });
 

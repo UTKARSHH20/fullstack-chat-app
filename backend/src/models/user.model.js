@@ -52,6 +52,20 @@ const userSchema = new mongoose.Schema({
         default: null,
         trim: true,
     },
+    currentTrack: {
+        type: String,
+        default: null,
+        trim: true,
+    },
+    currentArtist: {
+        type: String,
+        default: null,
+        trim: true,
+    },
+    isListening: {
+        type: Boolean,
+        default: false,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

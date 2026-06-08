@@ -1,13 +1,14 @@
 import {
     Bell, MessageSquare, Shield, Check, Monitor,
     Volume2, VolumeX, Eye, EyeOff, Clock,
-    Trash2, RotateCcw, Send, Moon, Sun, Sparkles
+    Trash2, RotateCcw, Send, Moon, Sun, Sparkles, Music
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import useThemeStore from "../src/store/useThemeStore"
 import useSettingsStore from "../src/store/useSettingsStore"
 import useAuthStore from "../src/store/useAuthStore"
 import StatusMoodSelector from "../components/StatusMoodSelector"
+import ListeningStatusSelector from "../components/ListeningStatusSelector"
 import toast from "react-hot-toast"
 
 const THEMES = [
@@ -82,12 +83,21 @@ export default function SettingsPage() {
     const { theme, setTheme } = useThemeStore()
 
     const { notifications: notif, chat, privacy: priv, updateNotification, updateChat, updatePrivacy, resetAll } = useSettingsStore()
-    const { authUser, updateStatusMood, isLoading } = useAuthStore()
+    const { authUser, updateStatusMood, updateListeningStatus, isLoading } = useAuthStore()
     const [selectedMood, setSelectedMood] = useState(authUser?.statusMood || null)
+    const [selectedTrack, setSelectedTrack] = useState(authUser?.currentTrack || "")
+    const [selectedArtist, setSelectedArtist] = useState(authUser?.currentArtist || "")
+    const [listeningEnabled, setListeningEnabled] = useState(authUser?.isListening || false)
 
     useEffect(() => {
         setSelectedMood(authUser?.statusMood || null)
     }, [authUser?.statusMood])
+
+    useEffect(() => {
+        setSelectedTrack(authUser?.currentTrack || "")
+        setSelectedArtist(authUser?.currentArtist || "")
+        setListeningEnabled(authUser?.isListening || false)
+    }, [authUser?.currentTrack, authUser?.currentArtist, authUser?.isListening])
 
     const handleMoodChange = async (mood) => {
         const previousMood = selectedMood
@@ -96,6 +106,42 @@ export default function SettingsPage() {
             await updateStatusMood(mood)
         } catch {
             setSelectedMood(previousMood)
+        }
+    }
+
+    const handleListeningSave = async ({ currentTrack, currentArtist, isListening }) => {
+        const previousTrack = selectedTrack
+        const previousArtist = selectedArtist
+        const previousEnabled = listeningEnabled
+
+        setSelectedTrack(currentTrack)
+        setSelectedArtist(currentArtist)
+        setListeningEnabled(isListening)
+
+        try {
+            await updateListeningStatus({ currentTrack, currentArtist, isListening })
+        } catch {
+            setSelectedTrack(previousTrack)
+            setSelectedArtist(previousArtist)
+            setListeningEnabled(previousEnabled)
+        }
+    }
+
+    const handleListeningClear = async () => {
+        const previousTrack = selectedTrack
+        const previousArtist = selectedArtist
+        const previousEnabled = listeningEnabled
+
+        setSelectedTrack("")
+        setSelectedArtist("")
+        setListeningEnabled(false)
+
+        try {
+            await updateListeningStatus({ currentTrack: "", currentArtist: "", isListening: false })
+        } catch {
+            setSelectedTrack(previousTrack)
+            setSelectedArtist(previousArtist)
+            setListeningEnabled(previousEnabled)
         }
     }
 
@@ -321,6 +367,21 @@ export default function SettingsPage() {
                         <StatusMoodSelector
                             value={selectedMood}
                             onChange={handleMoodChange}
+                            disabled={isLoading}
+                        />
+                    </Section>
+
+                    <Section
+                        icon={Music}
+                        title="Listening Status"
+                        description="Show the song and artist you are currently listening to"
+                    >
+                        <ListeningStatusSelector
+                            currentTrack={selectedTrack}
+                            currentArtist={selectedArtist}
+                            isListening={listeningEnabled}
+                            onSave={handleListeningSave}
+                            onClear={handleListeningClear}
                             disabled={isLoading}
                         />
                     </Section>

@@ -131,6 +131,20 @@ const useAuthStore = create((set) => ({
         }
     },
 
+    updateListeningStatus: async (listeningStatus) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.patch("/users/listening-status", listeningStatus);
+            set({ authUser: res.data });
+            toast.success("Listening status updated!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Listening status update failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
     updateProfilePicture: async (base64Image) => {
         set({ isLoading: true });
         try {
