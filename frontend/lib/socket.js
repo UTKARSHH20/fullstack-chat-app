@@ -6,11 +6,10 @@ const SOCKET_URL = import.meta.env.MODE === "development"
 
 let socket = null;
 
-export const connectSocket = (userId) => {
+export const connectSocket = () => {
     if (socket?.connected) return socket;
 
     socket = io(SOCKET_URL, {
-        query: { userId },
         withCredentials: true,
     });
 
@@ -20,6 +19,11 @@ export const connectSocket = (userId) => {
 
     socket.on("connect_error", (err) => {
         console.warn("[socket] connection error:", err.message);
+    });
+
+    // GSSoC Issue #59 Fix
+    socket.on("disconnect", (reason) => {
+        console.warn("[socket] disconnected due to:", reason);
     });
 
     return socket;

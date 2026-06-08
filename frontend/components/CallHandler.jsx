@@ -1,22 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff } from "lucide-react";
-import useCallStore from "../src/store/useCallStore";
+import useCallStore from "../src/store/useCallStore"; // Adjust path if needed based on your folder structure
 import useAuthStore from "../src/store/useAuthStore";
 import { getSocket } from "../lib/socket";
 
+/**
+ * CallHandler Component
+ * Orchestrates the WebRTC UI, media streams, peer connections, and timeout fallbacks.
+ * Mounts globally to intercept and render active voice/video calls across any route.
+ */
 export default function CallHandler() {
     const { call, localStream, remoteStream, peerConnection, setLocalStream, setRemoteStream, setPeer, clearCall } = useCallStore();
     const { authUser } = useAuthStore();
+    
+    // Media element references for rendering video/audio streams
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
 
+    // Local UI states for media controls and connection UX
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
+    
     const callTimerRef = useRef(null);
 
+    /**
+     * Call Duration Tracker
+     * Starts incrementing the active call clock once a peer connection is fully established and accepted.
+     */
     useEffect(() => {
         if (call?.hasAccepted && remoteStream) {
             callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
@@ -24,27 +37,42 @@ export default function CallHandler() {
         return () => { if (callTimerRef.current) clearInterval(callTimerRef.current); };
     }, [call?.hasAccepted, remoteStream]);
 
+    /**
+     * Resets the call duration back to zero when the call completely unmounts or clears.
+     */
     useEffect(() => {
         if (!call) setCallDuration(0);
     }, [call]);
 
+    /**
+     * Binds the local user's hardware media stream (camera) to the local video HTML element.
+     */
     useEffect(() => {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream, call?.type, isVideoOff]);
 
+    /**
+     * Binds the incoming remote peer's media stream to the main video HTML element.
+     */
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
         }
     }, [remoteStream]);
 
-    // Handle incoming ICE candidates & answers
+    /**
+     * Core WebSocket listener setup for handling WebRTC signaling data.
+     * Manages incoming ICE candidates for NAT traversal and remote connection acceptance.
+     */
     useEffect(() => {
         const socket = getSocket();
         if (!socket) return;
 
+        /**
+         * Injects network routing candidates into the active peer connection.
+         */
         const handleIceCandidate = async (candidate) => {
             const pc = useCallStore.getState().peerConnection;
             if (pc && pc.remoteDescription) {
@@ -58,12 +86,25 @@ export default function CallHandler() {
             }
         };
 
+        /**
+         * Resolves the WebRTC handshake when the remote peer accepts the call.
+         * CRITICAL FIX: Destroys the 30-second UX fallback timeout to prevent accidental hangups.
+         */
         const handleCallAccepted = async (signal) => {
             const pc = useCallStore.getState().peerConnection;
             if (pc) {
+                // Finalize the remote connection description
                 await pc.setRemoteDescription(new RTCSessionDescription(signal));
                 useCallStore.setState({ call: { ...useCallStore.getState().call, hasAccepted: true } });
                 
+                // UX TIMEOUT FIX: The user answered! Clear the 30-second abort timer so the call continues.
+                const { callTimeoutId } = useCallStore.getState();
+                if (callTimeoutId) {
+                    clearTimeout(callTimeoutId);
+                    useCallStore.setState({ callTimeoutId: null });
+                }
+                
+                // Flush buffered ICE candidates
                 const candidates = useCallStore.getState().remoteIceCandidates;
                 for (const candidate of candidates) {
                     try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.warn("ICE candidate error:", e) }
@@ -81,7 +122,9 @@ export default function CallHandler() {
         };
     }, []);
 
-    // Handle initiating outgoing calls
+    /**
+     * Auto-initiates an outgoing WebRTC offer if the local user is the caller.
+     */
     useEffect(() => {
         if (call && !call.isReceivingCall && !peerConnection && !isConnecting) {
             setIsConnecting(true);
@@ -108,7 +151,9 @@ export default function CallHandler() {
         }
     }, [call, peerConnection, isConnecting, authUser]);
 
-    // Cleanup on call end
+    /**
+     * Cleans up local UI connection toggles when the call drops or ends.
+     */
     useEffect(() => {
         if (!call) {
             setIsConnecting(false);
@@ -117,6 +162,11 @@ export default function CallHandler() {
         }
     }, [call]);
 
+    /**
+     * Requests hardware access for the camera and microphone.
+     * @param {string} type - 'audio' or 'video'
+     * @returns {Promise<MediaStream|null>} The generated media stream
+     */
     const setupMedia = async (type) => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -132,6 +182,12 @@ export default function CallHandler() {
         }
     };
 
+    /**
+     * Constructs the core RTCPeerConnection object with public STUN servers for NAT traversal.
+     * @param {MediaStream} stream - The local hardware stream.
+     * @param {string} toUser - Target user ID to route ICE candidates to.
+     * @returns {RTCPeerConnection} The initialized peer object.
+     */
     const createPeer = (stream, toUser) => {
         const socket = getSocket();
         const pc = new RTCPeerConnection({
@@ -157,6 +213,10 @@ export default function CallHandler() {
         return pc;
     };
 
+    /**
+     * Handles the receiving user accepting an incoming call.
+     * Generates a WebRTC answer and emits it back to the caller.
+     */
     const answerCall = async () => {
         const socket = getSocket();
         const stream = await setupMedia(call.type);
@@ -180,6 +240,9 @@ export default function CallHandler() {
         useCallStore.getState().clearIceCandidates();
     };
 
+    /**
+     * Declines an incoming call and notifies the caller's socket.
+     */
     const rejectCall = () => {
         const socket = getSocket();
         if (call?.caller) {
@@ -188,6 +251,9 @@ export default function CallHandler() {
         clearCall();
     };
 
+    /**
+     * Terminates an active call and tears down the peer connections.
+     */
     const endCall = () => {
         const socket = getSocket();
         const toUser = call.isReceivingCall ? call.caller : call.userToCall;
@@ -197,6 +263,9 @@ export default function CallHandler() {
         clearCall();
     };
 
+    /**
+     * Toggles the active state of the local audio track (Mute/Unmute).
+     */
     const toggleMute = () => {
         if (localStream) {
             localStream.getAudioTracks()[0].enabled = isMuted;
@@ -204,6 +273,9 @@ export default function CallHandler() {
         }
     };
 
+    /**
+     * Toggles the active state of the local video track (Camera On/Off).
+     */
     const toggleVideo = () => {
         if (localStream && call.type === "video") {
             const videoTrack = localStream.getVideoTracks()[0];

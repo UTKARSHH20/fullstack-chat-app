@@ -1,10 +1,13 @@
 import {
     Bell, MessageSquare, Shield, Check, Monitor,
     Volume2, VolumeX, Eye, EyeOff, Clock,
-    Trash2, RotateCcw, Send, Moon, Sun
+    Trash2, RotateCcw, Send, Moon, Sun, Sparkles
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import useThemeStore from "../src/store/useThemeStore"
 import useSettingsStore from "../src/store/useSettingsStore"
+import useAuthStore from "../src/store/useAuthStore"
+import StatusMoodSelector from "../components/StatusMoodSelector"
 import toast from "react-hot-toast"
 
 const THEMES = [
@@ -79,15 +82,33 @@ export default function SettingsPage() {
     const { theme, setTheme } = useThemeStore()
 
     const { notifications: notif, chat, privacy: priv, updateNotification, updateChat, updatePrivacy, resetAll } = useSettingsStore()
+    const { authUser, updateStatusMood, isLoading } = useAuthStore()
+    const [selectedMood, setSelectedMood] = useState(authUser?.statusMood || null)
+
+    useEffect(() => {
+        setSelectedMood(authUser?.statusMood || null)
+    }, [authUser?.statusMood])
+
+    const handleMoodChange = async (mood) => {
+        const previousMood = selectedMood
+        setSelectedMood(mood)
+        try {
+            await updateStatusMood(mood)
+        } catch {
+            setSelectedMood(previousMood)
+        }
+    }
 
     const upNotif = (k) => (v) => updateNotification(k, v)
     const upChat = (k) => (v) => updateChat(k, v)
     const upPriv = (k) => (v) => updatePrivacy(k, v)
 
     const DARK_THEMES = new Set(["dark","night","dracula","synthwave","luxury","coffee","halloween","black","dim","forest","lofi","business"])
+    const [fontSize, setFontSize] = useState(16)
+
 
     return (
-        <div className="min-h-screen bg-base-200">
+        <div className="h-full overflow-y-auto p-4 md:p-6 bg-base-200">
             <div className="max-w-3xl mx-auto px-4 py-8">
 
                 {/* Page header */}
@@ -148,9 +169,10 @@ export default function SettingsPage() {
                                 Preview
                             </p>
                             <div
-                                data-theme={theme}
-                                className="rounded-2xl overflow-hidden border border-base-content/10 shadow-lg"
-                            >
+    data-theme={theme}
+    style={{ fontSize: `${fontSize}px` }}
+    className="rounded-2xl overflow-hidden border border-base-content/10 shadow-lg"
+>
                                 {/* Preview header */}
                                 <div className="bg-base-200 px-4 py-3 flex items-center gap-3 border-b border-base-content/10">
                                     <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-content text-sm font-bold">J</div>
@@ -204,6 +226,21 @@ export default function SettingsPage() {
                                 {DARK_THEMES.has(theme) ? <Moon className="w-3.5 h-3.5 text-base-content/40" /> : <Sun className="w-3.5 h-3.5 text-base-content/40" />}
                                 <p className="text-xs text-base-content/40">
                                     Active theme: <span className="text-primary font-semibold capitalize">{theme}</span>
+
+                                    <div className="mt-4">
+    <label className="text-sm font-medium">
+        Font Size: {fontSize}px
+    </label>
+
+    <input
+        type="range"
+        min="12"
+        max="24"
+        value={fontSize}
+        onChange={(e) => setFontSize(e.target.value)}
+        className="range range-primary range-sm mt-2"
+    />
+</div>
                                 </p>
                             </div>
                         </div>
@@ -223,6 +260,37 @@ export default function SettingsPage() {
                             <ToggleRow icon={notif.sounds ? Volume2 : VolumeX} label="Notification sounds" description="Play a sound for incoming messages" checked={notif.sounds} onChange={upNotif("sounds")} />
                             <div className="divider my-0 opacity-20" />
                             <ToggleRow icon={Monitor}     label="Desktop notifications"  description="Show browser notifications when minimised" checked={notif.desktop} onChange={upNotif("desktop")} />
+
+                            <div className="divider my-0 opacity-20" />
+
+<div className="flex items-center justify-between py-2">
+    <div className="flex items-center gap-3">
+        <Clock className="w-4 h-4 text-base-content/40" />
+        <div>
+            <p className="text-sm font-medium">Mute Notifications</p>
+            <p className="text-xs text-base-content/40">
+                Temporarily disable all notifications
+            </p>
+        </div>
+    </div>
+    {notif.muteDuration !== "0" && (
+    <div className="mt-3 alert alert-warning py-2 text-sm">
+        Notifications are currently muted ({notif.muteDuration})
+    </div>
+)}
+
+    <select
+        className="select select-bordered select-sm"
+        value={notif.muteDuration}
+        onChange={(e) => updateNotification("muteDuration", e.target.value)}
+    >
+        <option value="0">Off</option>
+        <option value="30m">30 Minutes</option>
+        <option value="1h">1 Hour</option>
+        <option value="24h">24 Hours</option>
+        <option value="forever">Forever</option>
+    </select>
+</div>
                         </div>
                     </Section>
 
@@ -243,6 +311,18 @@ export default function SettingsPage() {
                             <div className="divider my-0 opacity-20" />
                             <ToggleRow label="Compact mode"         description="Reduce spacing between messages"     checked={chat.compact}     onChange={upChat("compact")} />
                         </div>
+                    </Section>
+
+                    <Section
+                        icon={Sparkles}
+                        title="Status Mood"
+                        description="Share what you are currently doing with your contacts"
+                    >
+                        <StatusMoodSelector
+                            value={selectedMood}
+                            onChange={handleMoodChange}
+                            disabled={isLoading}
+                        />
                     </Section>
 
                     {/* Privacy */}
