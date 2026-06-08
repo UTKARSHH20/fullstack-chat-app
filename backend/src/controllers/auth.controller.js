@@ -19,6 +19,18 @@ const getGoogleClient = () => {
 export async function signup(req, res) {
     const { name, email, password } = req.body;
     try {
+        // STRICT PASSWORD VALIDATION GATEWAY
+        if (!password || password.length < 8) {
+            return res.status(400).json({ message: "Password must be at least 8 characters long" });
+        }
+        
+        const complexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (!complexityRegex.test(password)) {
+            return res.status(400).json({ 
+                message: "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character" 
+            });
+        }
+
         const existing = await User.findOne({ email });
         if (existing) return res.status(409).json({ message: "An account with this email already exists" });
 
