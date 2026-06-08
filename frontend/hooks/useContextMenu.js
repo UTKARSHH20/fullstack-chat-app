@@ -6,7 +6,10 @@ export default function useContextMenu() {
     const longPressTimer = useRef(null);
 
     const openMenu = useCallback((e, msg, isMine) => {
-        e.preventDefault();
+        // GSSoC Issue #53 Fix
+        if (e && typeof e.preventDefault === "function") {
+            e.preventDefault();
+        }
         const W = 210, H = 320;
         const x = Math.min(e.clientX, window.innerWidth - W - 8);
         const y = Math.min(e.clientY, window.innerHeight - H - 8);
