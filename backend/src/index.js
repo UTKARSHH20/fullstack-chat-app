@@ -6,11 +6,13 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import compression from "compression"; // <-- Clean & Simple Import
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import connectDB from "./lib/db.js";
 import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/user.route.js";
 import messageRoutes from "./routes/message.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import scheduledMessageRoutes from "./routes/scheduledMessage.route.js";
@@ -39,6 +41,7 @@ app.use(cors({
         : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     credentials: true,
 }));
+app.use(compression()); // <-- Gzip Compression Added Right Here
 app.use(helmet({ contentSecurityPolicy: false }));
 // GSSoC Issue #35 Fix
 app.disable("x-powered-by");
@@ -102,6 +105,7 @@ const messageLimiter = rateLimit({
 
 // Primary Endpoint Route Mappings
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/users", authLimiter, userRoutes);
 app.use("/api/messages", messageLimiter, messageRoutes);
 app.use("/api/messages", messageLimiter, scheduledMessageRoutes);
 app.use("/api/analytics", analyticsRoutes);

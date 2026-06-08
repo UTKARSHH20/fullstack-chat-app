@@ -5,7 +5,7 @@ import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
-import { Search, PenSquare, MonitorSmartphone, Palette } from "lucide-react"
+import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -213,6 +213,11 @@ const activeChats = onlineUsers.length
             Archived
         </span>
     )}
+</div>
+</div>
+</div>
+<div className="text-xs text-base-content/50 truncate mt-1">
+    {user.statusMood && getStatusMoodLabel(user.statusMood)}
 </div>
 
     <Palette

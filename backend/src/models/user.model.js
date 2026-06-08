@@ -40,6 +40,20 @@ const userSchema = new mongoose.Schema({
     isOnline: {
         type: Boolean,
         default: false,
+    statusMood: {
+        type: String,
+        enum: [
+            "coding",
+            "coffee_break",
+            "studying",
+            "gaming",
+            "working",
+            "sleeping",
+            "music",
+            "away",
+        ],
+        default: null,
+        trim: true,
     },
 }, { timestamps: true });
 

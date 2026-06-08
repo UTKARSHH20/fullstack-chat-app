@@ -27,11 +27,11 @@ jobs:
       - name: Run NPM Audit on Backend
         working-directory: ./backend
         run: |
-          npm ci
+          npm install
           npm audit --audit-level=high
 
       - name: Run NPM Audit on Frontend
         working-directory: ./frontend
         run: |
-          npm ci
+          npm install
           npm audit --audit-level=high
