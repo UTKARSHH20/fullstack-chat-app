@@ -1,10 +1,13 @@
 import {
     Bell, MessageSquare, Shield, Check, Monitor,
     Volume2, VolumeX, Eye, EyeOff, Clock,
-    Trash2, RotateCcw, Send, Moon, Sun
+    Trash2, RotateCcw, Send, Moon, Sun, Sparkles
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import useThemeStore from "../src/store/useThemeStore"
 import useSettingsStore from "../src/store/useSettingsStore"
+import useAuthStore from "../src/store/useAuthStore"
+import StatusMoodSelector from "../components/StatusMoodSelector"
 import toast from "react-hot-toast"
 
 const THEMES = [
@@ -79,6 +82,22 @@ export default function SettingsPage() {
     const { theme, setTheme } = useThemeStore()
 
     const { notifications: notif, chat, privacy: priv, updateNotification, updateChat, updatePrivacy, resetAll } = useSettingsStore()
+    const { authUser, updateStatusMood, isLoading } = useAuthStore()
+    const [selectedMood, setSelectedMood] = useState(authUser?.statusMood || null)
+
+    useEffect(() => {
+        setSelectedMood(authUser?.statusMood || null)
+    }, [authUser?.statusMood])
+
+    const handleMoodChange = async (mood) => {
+        const previousMood = selectedMood
+        setSelectedMood(mood)
+        try {
+            await updateStatusMood(mood)
+        } catch {
+            setSelectedMood(previousMood)
+        }
+    }
 
     const upNotif = (k) => (v) => updateNotification(k, v)
     const upChat = (k) => (v) => updateChat(k, v)
@@ -292,6 +311,18 @@ export default function SettingsPage() {
                             <div className="divider my-0 opacity-20" />
                             <ToggleRow label="Compact mode"         description="Reduce spacing between messages"     checked={chat.compact}     onChange={upChat("compact")} />
                         </div>
+                    </Section>
+
+                    <Section
+                        icon={Sparkles}
+                        title="Status Mood"
+                        description="Share what you are currently doing with your contacts"
+                    >
+                        <StatusMoodSelector
+                            value={selectedMood}
+                            onChange={handleMoodChange}
+                            disabled={isLoading}
+                        />
                     </Section>
 
                     {/* Privacy */}

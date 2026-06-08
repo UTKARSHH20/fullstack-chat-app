@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Camera, Pencil } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
+import StatusMoodSelector from "../components/StatusMoodSelector"
 
 export default function ProfilePage() {
     const { authUser: user, updateProfile, updateProfilePicture, isLoading } = useAuthStore()
@@ -11,6 +12,21 @@ export default function ProfilePage() {
     const [previewImage, setPreviewImage] = useState(user?.profilePicture || null)
     const [selectedFile, setSelectedFile] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
+    const [selectedMood, setSelectedMood] = useState(user?.statusMood || null)
+
+    useEffect(() => {
+        setSelectedMood(user?.statusMood || null)
+    }, [user?.statusMood])
+
+    const handleMoodChange = async (mood) => {
+        const previousMood = selectedMood
+        setSelectedMood(mood)
+        try {
+            await updateStatusMood(mood)
+        } catch {
+            setSelectedMood(previousMood)
+        }
+    }
 
     const handleFileChange = (e) => {
         const file = e.target.files[0]
@@ -109,17 +125,27 @@ export default function ProfilePage() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="form-control">
-                            <label className="label">
-                                <span className="label-text font-medium">Full Name</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                disabled={!isEditing || isLoading}
-                                className="input input-bordered w-full disabled:bg-base-200 disabled:cursor-not-allowed"
-                            />
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="form-control">
+                                <label className="label">
+                                    <span className="label-text font-medium">Full Name</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    disabled={!isEditing || isLoading}
+                                    className="input input-bordered w-full disabled:bg-base-200 disabled:cursor-not-allowed"
+                                />
+                            </div>
+
+                            <div className="form-control">
+                                <StatusMoodSelector
+                                    value={selectedMood}
+                                    onChange={handleMoodChange}
+                                    disabled={isLoading}
+                                />
+                            </div>
                         </div>
 
                         <div className="form-control">

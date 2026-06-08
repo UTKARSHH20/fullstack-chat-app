@@ -53,6 +53,7 @@ export const signup = catchAsync(async (req, res) => {
             name: user.name,
             email: user.email,
             profilePicture: user.profilePicture,
+            statusMood: user.statusMood || null,
         });
 });
 
@@ -82,6 +83,7 @@ export const login = catchAsync(async (req, res) => {
             name: user.name,
             email: user.email,
             profilePicture: user.profilePicture,
+            statusMood: user.statusMood || null,
         });
 });
 
@@ -134,6 +136,7 @@ export const googleAuth = catchAsync(async (req, res) => {
             name: user.name,
             email: user.email,
             profilePicture: user.profilePicture,
+            statusMood: user.statusMood || null,
         });
 });
 

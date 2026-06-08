@@ -42,6 +42,10 @@ const userSocketMap = {};
 export const getReceiverSocketIds = (userId) => 
     userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
+export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
+    io.emit("statusMoodUpdated", { userId, statusMood });
+};
+
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
  * Adjust the database query inside based on whether you track relationships via 

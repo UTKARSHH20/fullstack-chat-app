@@ -3,7 +3,7 @@ import {
     Image, Images, Send, X, MessageSquare,
     ArrowLeft, Smile, Mic, Square,Loader2, 
     Phone, Video, Trash2,Search, FileText,
-    NotebookPen, BarChart3, Sparkles, PenTool, Compass
+    NotebookPen, BarChart3, Sparkles, PenTool, Compass, Clock
 } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../../src/store/useAuthStore"
@@ -13,13 +13,16 @@ import useBookmarkStore from "../../src/store/useBookmarkStore"
 import useRecording from "../../hooks/useRecording"
 import useTypingIndicator from "../../hooks/useTypingIndicator"
 import useContextMenu from "../../hooks/useContextMenu"
+import axiosInstance from "../../lib/axios"
 import Avatar from "./Avatar"
 import ContextMenu from "./ContextMenu"
 import ReplyBar from "./ReplyBar"
 import EmojiPicker from "./EmojiPicker"
 import MessageBubble from "./MessageBubble"
+import NewChatModal from "./NewChatModal"
+import SmartReplySuggestions from "./SmartReplySuggestions"
 import ScheduleMessageModal from "./ScheduleMessageModal"
-import { Clock } from "lucide-react"
+import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
@@ -59,12 +62,16 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const [replyTo, setReplyTo] = useState(null)
     const [showEmoji, setShowEmoji] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [quickReplies, setQuickReplies] = useState([])
+    const [quickRepliesLoading, setQuickRepliesLoading] = useState(false)
+    const [latestIncomingMessageId, setLatestIncomingMessageId] = useState(null)
     const [showSpamWarning, setShowSpamWarning] = useState(false)
     const [showInsights, setShowInsights] = useState(false)
     const [showPoll, setShowPoll] = useState(false)
     const [showNotes, setShowNotes] = useState(false)
     const [sharedNotes, setSharedNotes] = useState("")
     const [showGallery, setShowGallery] = useState(false)
+    const [showNewChatModal, setShowNewChatModal] = useState(false);
 
     // Search state
     const [searchOpen, setSearchOpen] = useState(false)
@@ -79,6 +86,7 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             return;
         }
         const timer = setTimeout(async () => {
+            if (!selectedUser?._id) return;
     const results = await searchTextMessages(
         selectedUser._id,
         searchQuery
@@ -157,6 +165,47 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         }
     }, [selectedUser?._id, messages.length]);
 
+    useEffect(() => {
+        const lastMessage = messages[messages.length - 1];
+
+        if (!selectedUser?._id || !lastMessage || lastMessage.senderId !== selectedUser._id) {
+            setQuickReplies([])
+            setLatestIncomingMessageId(null)
+            setQuickRepliesLoading(false)
+            return
+        }
+
+        if (lastMessage._id === latestIncomingMessageId) return
+
+        const loadSuggestions = async () => {
+            setQuickRepliesLoading(true)
+            try {
+                const res = await axiosInstance.get(`/messages/suggestions/${lastMessage._id}`)
+                setQuickReplies(res.data.suggestions || [])
+            } catch (error) {
+                setQuickReplies([])
+            } finally {
+                setQuickRepliesLoading(false)
+                setLatestIncomingMessageId(lastMessage._id)
+            }
+        }
+
+        loadSuggestions()
+    }, [messages, selectedUser?._id, latestIncomingMessageId])
+
+    const handleSendQuickReply = async (replyText) => {
+        if (!replyText.trim()) return
+
+        setQuickReplies([])
+        setText(replyText)
+        setSending(true)
+
+        await sendMessage({ message: replyText, image: "", audio: "", replyTo: null })
+
+        setText("")
+        setSending(false)
+    }
+
     // Scroll to bottom on new messages — but NOT when older messages are prepended by loadMore
     const prevMsgCountRef = useRef(0)
     useEffect(() => {
@@ -221,13 +270,19 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
     const handleDelete = async () => { await deleteMessage(contextMenu.message._id); closeMenu() }
     const handleReact = (messageId, emoji) => { addReaction(messageId, emoji) }
 
-    const handleImage = (e) => {
-        const file = e.target.files[0]
-        if (!file) return
-        const reader = new FileReader()
-        reader.onloadend = () => { setImagePreview(URL.createObjectURL(file)); setImageBase64(reader.result) }
-        reader.readAsDataURL(file)
+   const handleImage = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+
+    reader.onloadend = () => {
+        setImagePreview(URL.createObjectURL(file))
+        setImageBase64(reader.result)
     }
+
+    reader.readAsDataURL(file)
+}
 
     const handleSend = async () => {
         if (!text.trim() && !imageBase64 && !audioBase64) return
@@ -251,7 +306,13 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         clearAudio()
         setReplyTo(null)
 
-        await sendMessage(payload)
+       try {
+   await sendMessage(payload)
+} catch (err) {
+   toast.error("Failed to send")
+} finally {
+   setSending(false)
+}
         
         setSending(false)
     }
@@ -296,6 +357,7 @@ const mediaMessages = messages.filter(
     const sharedMedia = messages.filter(msg => msg.image)
 
     if (!selectedUser) return (
+        <>
     <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col items-center justify-center bg-base-100 transition-colors duration-300`}>
         <div className="w-full h-full flex-1 text-base-content flex flex-col items-center justify-start py-6 px-6 font-sans antialiased overflow-y-auto selection:bg-primary/20">
       
@@ -307,7 +369,8 @@ const mediaMessages = messages.filter(
                 </div>
                 {/* Fixed the crash by using a safe optional check or inline handler */}
                 <button 
-                    onClick={() => typeof onNewChat === 'function' ? onNewChat() : toast.success("Starting a fresh session...")} 
+                    // onClick={() => typeof onNewChat === 'function' ? onNewChat() : toast.success("Starting a fresh session...")} 
+                    onClick={() => setShowNewChatModal(true)}
                     className="hover:text-primary transition-colors cursor-pointer text-base-content/60"
                 >
                     + New chat
@@ -388,6 +451,17 @@ const mediaMessages = messages.filter(
             </div>
         </div>
     </div>
+
+    {showNewChatModal && (
+    <NewChatModal
+        onClose={() => setShowNewChatModal(false)}
+        onSelectUser={(user) => {
+            // open selected chat
+            console.log(user);
+        }}
+    />
+)}
+</>
 )
 
     return (
@@ -402,6 +476,11 @@ const mediaMessages = messages.filter(
                 <Avatar user={selectedUser} isOnline={isOnline} />
                 <div>
                     <p className="font-semibold text-sm">{selectedUser.name}</p>
+                    {selectedUser.statusMood ? (
+                        <p className="text-xs text-base-content/60">
+                            {getStatusMoodLabel(selectedUser.statusMood)}
+                        </p>
+                    ) : null}
                     <p className={`text-xs ${isOnline ? "text-success font-medium" : "text-base-content/70"}`}>
                         {typingUsers.includes(selectedUser._id) ? (
                             <span className="text-success font-bold animate-pulse inline-block">typing...</span>
@@ -461,6 +540,7 @@ const mediaMessages = messages.filter(
     title="Generate Conversation Summary"
 >
     <FileText className="w-5 h-5" />
+    </button>
     <button
     onClick={() => setShowNotes(!showNotes)}
     className={`btn btn-ghost btn-circle btn-sm ${
@@ -469,7 +549,7 @@ const mediaMessages = messages.filter(
     title="Shared Notes"
 >
     <NotebookPen className="w-5 h-5" />
-</button>
+
 </button>
                 </div>
             </div>
@@ -625,17 +705,11 @@ const mediaMessages = messages.filter(
                 <ReplyBar replyTo={replyTo} authUser={authUser} selectedUser={selectedUser} onCancel={() => setReplyTo(null)} />
             )}
 
-            <div className="px-4 py-2 flex flex-wrap gap-2">
-    {["👍 Sounds good", "Thanks!", "I'll check", "Okay"].map((reply) => (
-        <button
-            key={reply}
-            onClick={() => setText(reply)}
-            className="btn btn-xs btn-outline"
-        >
-            {reply}
-        </button>
-    ))}
-</div>
+            <SmartReplySuggestions
+                suggestions={quickReplies}
+                loading={quickRepliesLoading}
+                onSelect={handleSendQuickReply}
+            />
 
             {imagePreview && (
                 <div className="px-4 pb-2">
