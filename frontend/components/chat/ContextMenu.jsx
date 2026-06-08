@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react"
-import { Reply, Copy, Trash2 } from "lucide-react"
+import { Reply, Copy, Trash2, Star } from "lucide-react"
 import toast from "react-hot-toast"
 import { EMOJIS } from "./emojiData"
 
 // Right-click / long-press context menu for messages
-export default function ContextMenu({ menu, onClose, onReply, onCopy, onDelete, onReact }) {
+export default function ContextMenu({ menu, onClose, onReply, onCopy, onDelete, onReact, onBookmark, isBookmarked }) {
     const ref = useRef(null)
     useEffect(() => {
         const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
@@ -17,6 +17,7 @@ export default function ContextMenu({ menu, onClose, onReply, onCopy, onDelete, 
     const actions = [
         { icon: Reply,   label: "Reply",   fn: onReply },
         { icon: Copy,    label: "Copy",    fn: onCopy,   hide: !menu.message?.message },
+        { icon: Star,    label: isBookmarked ? "Remove Bookmark" : "Bookmark Message", fn: onBookmark },
         { icon: Trash2,  label: "Delete",  fn: onDelete, hide: !menu.isMine, danger: true },
     ].filter(a => !a.hide)
 

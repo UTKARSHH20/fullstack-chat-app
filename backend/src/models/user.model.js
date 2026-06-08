@@ -37,6 +37,21 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    statusMood: {
+        type: String,
+        enum: [
+            "coding",
+            "coffee_break",
+            "studying",
+            "gaming",
+            "working",
+            "sleeping",
+            "music",
+            "away",
+        ],
+        default: null,
+        trim: true,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

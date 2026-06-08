@@ -117,6 +117,20 @@ const useAuthStore = create((set) => ({
         }
     },
 
+    updateStatusMood: async (statusMood) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.patch("/users/status-mood", { statusMood });
+            set({ authUser: res.data });
+            toast.success("Status mood updated!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Mood update failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
     updateProfilePicture: async (base64Image) => {
         set({ isLoading: true });
         try {
