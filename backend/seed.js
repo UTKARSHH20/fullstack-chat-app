@@ -55,11 +55,12 @@ async function seed() {
       usersData.map((u) => upsertUser(u, hashedPassword))
     );
 
-    const find = (name) => createdUsers.find((u) => u.name === name);
-    const utkarsh = find("Utkarsh");
-    const harsh = find("Harsh");
-    const pratikshya = find("Pratikshya");
-    const aryan = find("Aryan");
+    // Resolve by email (stable identifier) to avoid name mismatch on existing users
+    const byEmail = Object.fromEntries(createdUsers.map((u) => [u.email, u]));
+    const utkarsh = byEmail["utkarsh@example.com"];
+    const harsh = byEmail["harsh@example.com"];
+    const pratikshya = byEmail["pratikshya@example.com"];
+    const aryan = byEmail["aryan@example.com"];
 
     const seedMessages = [
       { from: harsh, to: utkarsh, text: "Hey Utkarsh, is the new chat app ready?" },
