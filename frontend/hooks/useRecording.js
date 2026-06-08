@@ -107,7 +107,6 @@ export default function useRecording() {
      */
     const cancelRecording = useCallback(() => {
         isCanceledRef.current = true; // Prevents the onstop event from saving the file
-    const cancelRecording = () => {
         isCancelledRef.current = true;
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
