@@ -20,7 +20,42 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 
+// SECURITY ENGINE: In-memory store for tracking sliding window handshake intervals
+const connectionRates = {};
+const MAX_CONNECTIONS_PER_WINDOW = 5;
+const RATE_LIMIT_WINDOW_MS = 10000; // 10-second sliding window
+
 export const getReceiverSocketIds = (userId) => userSocketMap[userId] || [];
+
+/**
+ * SOCKET MIDDLEWARE: IP-Based Connection Rate Limiter
+ * Intercepts incoming client handshakes prior to connection establishment.
+ * Safely mitigates script-based resource exhaustion or socket flooding attacks.
+ */
+io.use((socket, next) => {
+    // Safely extract client IP checking proxy layers first
+    const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    const currentTime = Date.now();
+
+    if (!connectionRates[clientIp]) {
+        connectionRates[clientIp] = [];
+    }
+
+    // Retain only connection timestamps within the active 10-second window
+    connectionRates[clientIp] = connectionRates[clientIp].filter(
+        (timestamp) => currentTime - timestamp < RATE_LIMIT_WINDOW_MS
+    );
+
+    // Drop handshakes immediately if they exceed thresholds
+    if (connectionRates[clientIp].length >= MAX_CONNECTIONS_PER_WINDOW) {
+        console.warn(`WebSocket Rate Limit Breached: Blocked connection from IP ${clientIp}`);
+        return next(new Error("Too many connection requests. Please slow down."));
+    }
+
+    // Log the current valid handshake timestamp and let the client pass through
+    connectionRates[clientIp].push(currentTime);
+    next();
+});
 
 io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
