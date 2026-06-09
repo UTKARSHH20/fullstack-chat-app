@@ -16,6 +16,7 @@ const useChatStore = create((set, get) => ({
     isMessagesLoading: false,
     hasMore: false,
     isLoadingMore: false,
+    activeAudioId: null,
 
     getUsers: async () => {
         set({ isUsersLoading: true });
@@ -348,7 +349,7 @@ const useChatStore = create((set, get) => ({
     },
 
     setSelectedUser: (user) => {
-        if (!user) return set({ selectedUser: null, messages: [] });
+        if (!user) return set({ selectedUser: null, messages: [], activeAudioId: null });
         const current = get().selectedUser;
         if (current?._id === user?._id) return;
 
@@ -356,11 +357,14 @@ const useChatStore = create((set, get) => ({
         set((state) => ({
             selectedUser: user,
             messages: [],
+            activeAudioId: null,
             users: state.users.map((u) =>
                 u._id === user._id ? { ...u, unreadCount: 0 } : u
             ),
         }));
     },
+
+    setActiveAudioId: (id) => set({ activeAudioId: id }),
 }));
 
 export default useChatStore;

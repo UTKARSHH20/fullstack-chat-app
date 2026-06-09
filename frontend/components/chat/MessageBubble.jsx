@@ -1,7 +1,8 @@
 import { Check, CheckCheck, Pin, Languages} from "lucide-react"
 import Avatar from "./Avatar"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import ReplyPreview from "./ReplyPreview"
+import useChatStore from "../../src/store/useChatStore"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -10,8 +11,17 @@ const formatTime = (d) =>
 export default function MessageBubble({ msg, isMine, showTime, selectedUser, isOnline, authUser, onContextMenu, onTouchStart, onTouchEnd, onReact }) {
 
     const [showTranslation, setShowTranslation] = useState(false)
-    const [selectedImage, setSelectedImage] = useState(null)
     const [isSelected, setIsSelected] = useState(false)
+
+    const activeAudioId = useChatStore((state) => state.activeAudioId)
+    const setActiveAudioId = useChatStore((state) => state.setActiveAudioId)
+    const audioRef = useRef(null)
+
+    useEffect(() => {
+        if (activeAudioId && activeAudioId !== msg._id && audioRef.current) {
+            audioRef.current.pause()
+        }
+    }, [activeAudioId, msg._id])
 
     const getTranslatedText = (text) => {
     const translations = {
@@ -93,7 +103,7 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
         src={msg.image}
         alt="attachment"
         className="max-w-full rounded-lg mb-1 cursor-pointer hover:opacity-90 transition"
-        onClick={() => setSelectedImage(msg.image)}
+        onClick={() => window.open(msg.image, "_blank")}
     />
 )}
                     
@@ -105,9 +115,21 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
         </div>
 
         <audio
+            ref={audioRef}
             src={msg.audio}
             controls
             className="max-w-full h-10 mb-1"
+            onPlay={() => setActiveAudioId(msg._id)}
+            onPause={() => {
+                if (activeAudioId === msg._id) {
+                    setActiveAudioId(null);
+                }
+            }}
+            onEnded={() => {
+                if (activeAudioId === msg._id) {
+                    setActiveAudioId(null);
+                }
+            }}
         />
     </>
 )}
@@ -121,15 +143,11 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
         </p>
 
         <button 
-    key={emoji}
-    title={`${count} reaction${count > 1 ? "s" : ""}`}
-    onClick={(e) => { e.stopPropagation(); onReact(msg._id, emoji); }}
-    className={`text-xs px-1.5 py-0.5 rounded-full shadow-sm hover:scale-110 hover:shadow-md transition-all ${isMine ? "bg-primary-focus text-primary-content border border-white/20" : "bg-base-100 text-base-content border border-base-300"}`}
->
-            <Languages className="w-3 h-3" />
-            {showTranslation
-                ? "Show Original"
-                : "Translate"}
+            onClick={(e) => { e.stopPropagation(); setShowTranslation(!showTranslation); }}
+            className={`text-xs px-1.5 py-0.5 rounded-full shadow-sm hover:scale-110 hover:shadow-md transition-all ${isMine ? "bg-primary-focus text-primary-content border border-white/20" : "bg-base-100 text-base-content border border-base-300"}`}
+        >
+            <Languages className="w-3 h-3 inline mr-1" />
+            {showTranslation ? "Show Original" : "Translate"}
         </button>
 
         {msg.edited && (
