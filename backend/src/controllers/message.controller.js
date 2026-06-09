@@ -313,6 +313,16 @@ export const sendMessage = catchAsync(async (req, res) => {
             return res.status(400).json({ message: "Message content cannot be empty" });
         }
 
+        if (message?.trim() && !image && !audio) {
+            const lastMessage = await Message.findOne({ senderId }).sort({ createdAt: -1 });
+            if (lastMessage && lastMessage.message === message.trim()) {
+                const timeDiff = Date.now() - new Date(lastMessage.createdAt).getTime();
+                if (timeDiff < 5000) {
+                    return res.status(429).json({ message: "Spam detected: You are sending the same message too quickly." });
+                }
+            }
+        }
+
         // OPTIMIZATION: Only fetch the push subscription and name to limit memory use
         const receiverUser = await User.findById(receiverId).select("name pushSubscription");
         if (!receiverUser) {
