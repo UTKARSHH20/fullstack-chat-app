@@ -3,7 +3,10 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketIds } from "../lib/socket.js";
+import getSmartReplies from "../lib/smartReplies.js";
 import webpush from "../lib/webpush.js";
+import { catchAsync } from "../lib/utils.js";
+import xss from "xss";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -111,9 +114,8 @@ const validateAudioAttachment = (base64Str, maxSizeBytes = 10 * 1024 * 1024) => 
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function getUsers(req, res) {
+export const getUsers = catchAsync(async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
-    try {
         const conversations = await Message.aggregate([
             { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
             { $sort: { createdAt: -1 } },
@@ -161,6 +163,7 @@ export async function getUsers(req, res) {
             email: partner.email,
             profilePicture: partner.profilePicture,
             lastSeen: partner.lastSeen,
+            statusMood: partner.statusMood || null,
             lastMessage: {
                 _id: lastMessage._id,
                 message: lastMessage.message,
@@ -173,11 +176,7 @@ export async function getUsers(req, res) {
         }));
 
         res.status(200).json(result);
-    } catch (err) {
-        console.error("getUsers:", err.message);
-        res.status(500).json({ message: "Could not load conversations" });
-    }
-}
+});
 
 // ── GET /messages/search?q= ──────────────────────────────────────
 /**
@@ -187,8 +186,7 @@ export async function getUsers(req, res) {
  * @param {Object} req - Express request object containing `q` query.
  * @param {Object} res - Express response object.
  */
-export async function searchUsers(req, res) {
-    try {
+export const searchUsers = catchAsync(async (req, res) => {
         const safeQuery = sanitizeSearchQuery(req.query.q);
         
         // Return empty array if query is missing, empty, invalid type, or too long
@@ -203,11 +201,7 @@ export async function searchUsers(req, res) {
         .limit(10);
         
         res.status(200).json(users);
-    } catch (err) {
-        console.error("searchUsers:", err.message);
-        res.status(500).json({ message: "Could not search users" });
-    }
-}
+});
 
 // ── GET /messages/:id?before=&limit= ────────────────────────────
 /**
@@ -215,8 +209,7 @@ export async function searchUsers(req, res) {
  * @param {Object} req - Express request object containing receiver `id` param.
  * @param {Object} res - Express response object.
  */
-export async function getMessages(req, res) {
-    try {
+export const getMessages = catchAsync(async (req, res) => {
         const { id: receiverId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(receiverId)) {
             return res.status(400).json({ message: "Invalid receiver user ID format" });
@@ -250,9 +243,40 @@ export async function getMessages(req, res) {
 
         messages.reverse();
         res.status(200).json({ messages, hasMore });
+});
+
+// ── GET /messages/suggestions/:messageId ─────────────────────────
+/**
+ * Returns quick reply suggestions for an incoming message.
+ * Only the sender or receiver of the message may request suggestions.
+ */
+export async function getMessageSuggestions(req, res) {
+    try {
+        const { messageId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+            return res.status(400).json({ message: "Invalid message ID format" });
+        }
+
+        const message = await Message.findById(messageId).lean();
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        const currentUserId = req.userId?.toString();
+        const isParticipant = [message.senderId?.toString(), message.receiverId?.toString()].includes(currentUserId);
+        if (!isParticipant) {
+            return res.status(403).json({ message: "Not authorized to view suggestions for this message" });
+        }
+
+        if (message.senderId?.toString() === currentUserId) {
+            return res.status(200).json({ suggestions: [] });
+        }
+
+        const suggestions = getSmartReplies(message.message || "");
+        res.status(200).json({ suggestions });
     } catch (err) {
-        console.error("getMessages:", err.message);
-        res.status(500).json({ message: "Could not load messages" });
+        console.error("getMessageSuggestions:", err.message);
+        res.status(500).json({ message: "Could not load suggestions" });
     }
 }
 
@@ -263,8 +287,7 @@ export async function getMessages(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function sendMessage(req, res) {
-    try {
+export const sendMessage = catchAsync(async (req, res) => {
         const { id: receiverId } = req.params;
         // GSSoC Issue #57 Fix
         if (!receiverId) {
@@ -284,7 +307,9 @@ export async function sendMessage(req, res) {
             return res.status(400).json({ message: "Invalid replyTo ID format" });
         }
 
-        if (!message?.trim() && !image && !audio) {
+        let sanitizedMessage = message ? xss(message.trim()) : "";
+
+        if (!sanitizedMessage && !image && !audio) {
             return res.status(400).json({ message: "Message content cannot be empty" });
         }
 
@@ -323,7 +348,7 @@ export async function sendMessage(req, res) {
         const newMessage = await Message.create({
             senderId,
             receiverId,
-            message: message || "",
+            message: sanitizedMessage,
             image: imageUrl,
             audio: audioUrl,
             replyTo: replyTo || undefined,
@@ -354,11 +379,7 @@ export async function sendMessage(req, res) {
         }
 
         res.status(201).json(newMessage);
-    } catch (err) {
-        console.error("sendMessage:", err.message);
-        res.status(500).json({ message: "Could not send message" });
-    }
-}
+});
 
 // ── DELETE /messages/:id ─────────────────────────────────────────
 /**
@@ -367,8 +388,7 @@ export async function sendMessage(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function deleteMessage(req, res) {
-    try {
+export const deleteMessage = catchAsync(async (req, res) => {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: "Invalid message ID format" });
@@ -402,11 +422,7 @@ export async function deleteMessage(req, res) {
         senderSocketIds.forEach(socketId => io.to(socketId).emit("deleteMessage", id));
 
         res.status(200).json({ _id: id });
-    } catch (err) {
-        console.error("deleteMessage:", err.message);
-        res.status(500).json({ message: "Could not delete message" });
-    }
-}
+});
 
 // ── PUT /messages/mark-seen ──────────────────────────────────────
 /**
@@ -414,8 +430,7 @@ export async function deleteMessage(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function markMessagesAsSeen(req, res) {
-    try {
+export const markMessagesAsSeen = catchAsync(async (req, res) => {
         const { senderId } = req.body;
         if (!senderId || !mongoose.Types.ObjectId.isValid(senderId)) {
             return res.status(400).json({ message: "Invalid sender ID format" });
@@ -432,19 +447,14 @@ export async function markMessagesAsSeen(req, res) {
             senderSocketIds.forEach(socketId => io.to(socketId).emit("messagesSeen", { receiverId }));
         }
         res.status(200).json({ message: "Messages marked as seen" });
-    } catch (err) {
-        console.error("markMessagesAsSeen:", err.message);
-        res.status(500).json({ message: "Could not mark messages as seen" });
-    }
-}
+});
 
 /**
  * Toggles a user's emoji reaction on a specific message.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function reactToMessage(req, res) {
-    try {
+export const reactToMessage = catchAsync(async (req, res) => {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: "Invalid message ID format" });
@@ -487,11 +497,7 @@ export async function reactToMessage(req, res) {
         senderSocketIds.forEach(socketId => io.to(socketId).emit("messageReacted", { messageId: id, reactions: message.reactions }));
 
         res.status(200).json(message.reactions);
-    } catch (err) {
-        console.error("reactToMessage:", err.message);
-        res.status(500).json({ message: "Could not update reaction" });
-    }
-}
+});
 
 /**
  * Searches specific conversation history for message content.
@@ -499,8 +505,7 @@ export async function reactToMessage(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-export async function searchTextMessages(req, res) {
-    try {
+export const searchTextMessages = catchAsync(async (req, res) => {
         const { id: partnerId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(partnerId)) {
             return res.status(400).json({ message: "Invalid partner user ID format" });
@@ -522,8 +527,4 @@ export async function searchTextMessages(req, res) {
         }).sort({ createdAt: 1 });
 
         res.status(200).json(messages);
-    } catch (err) {
-        console.error("searchTextMessages:", err.message);
-        res.status(500).json({ message: "Could not search messages" });
-    }
-}
+});
