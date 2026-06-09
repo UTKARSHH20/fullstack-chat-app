@@ -42,7 +42,22 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                     </div>
                 )}
                 <div
-                    className={`chat-bubble shadow-sm max-w-[75%] break-words cursor-pointer select-none ${isMine ? "chat-bubble-primary" : ""}`}
+                   className={`chat-bubble
+  shadow-md
+ max-w-[90%] sm:max-w-[85%] md:max-w-[75%]
+  break-words
+  whitespace-pre-wrap
+  cursor-pointer
+  select-none
+  rounded-2xl
+  transition-all
+  duration-200
+  hover:shadow-lg
+ ${
+  isMine
+    ? "chat-bubble-primary rounded-br-md"
+    : "bg-base-200 text-base-content rounded-bl-md"
+}`}
                     onContextMenu={e => onContextMenu(e, msg, isMine)}
                     onTouchStart={e => onTouchStart(e, msg, isMine)}
                     onTouchEnd={onTouchEnd}
@@ -63,7 +78,7 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
                     {msg.image && (
                         <img
                             src={msg.image} alt="attachment"
-                            className="max-w-full rounded-lg mb-1 cursor-pointer"
+                            className="max-w-full md:max-w-sm rounded-xl mb-1 cursor-pointer shadow-sm"
                             onClick={() => window.open(msg.image, "_blank")}
                         />
                     )}
@@ -78,14 +93,14 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
         <audio
             src={msg.audio}
             controls
-            className="max-w-full h-10 mb-1"
+            className="w-full max-w-xs h-10 mb-1"
         />
     </>
 )}
                     {/* GSSoC Issue #41 Fix */}
 {msg.message && (
     <div>
-        <p className="text-sm">
+        <p className="text-sm break-words whitespace-pre-wrap leading-relaxed">
             {showTranslation
                 ? getTranslatedText(String(msg.message))
                 : String(msg.message)}
@@ -139,7 +154,13 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
     </div>
 )}
 
-                    <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMine ? "text-primary-content/70" : "text-base-content/50"}`}>
+                    <div
+  className={`flex items-center justify-end gap-1 mt-2 text-[10px] opacity-70 ${
+    isMine
+      ? "text-primary-content"
+      : "text-base-content"
+  }`}
+>
                         <span>{formatTime(msg.createdAt)}</span>
                         {isMine && (
     <span
