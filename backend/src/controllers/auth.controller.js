@@ -30,31 +30,41 @@ const getGoogleClient = () => {
  */
 export const signup = catchAsync(async (req, res) => {
     const { name, email, password } = req.body;
-        const existing = await User.findOne({ email });
-        if (existing) {
-            return res.status(409).json({ message: "An account with this email already exists" });
-        }
 
-        // Secure password hashing with 10 salt rounds
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // Sanitize string attributes before insertion
-        const user = await User.create({ 
-            name: name.trim(), 
-            email: email.toLowerCase().trim(), 
-            password: hashedPassword 
-        });
+    // Password Strength Validation
+    const passwordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()[\]{}\-_=+|\\:;"'<>,./~`]).{8,}$/;
 
-        // Set secure HTTP-Only authentication cookie
-        generateTokenAndSetCookie(user._id, res);
-        
-        res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            profilePicture: user.profilePicture,
-            statusMood: user.statusMood || null,
+    if (!passwordRegex.test(password)) {
+        return res.status(400).json({
+            message:
+                "Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character",
         });
+    }
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+        return res.status(409).json({
+            message: "An account with this email already exists",
+        });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        password: hashedPassword,
+    });
+
+    generateTokenAndSetCookie(user._id, res);
+
+    res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profilePicture: user.profilePicture,
+    });
 });
 
 /**
