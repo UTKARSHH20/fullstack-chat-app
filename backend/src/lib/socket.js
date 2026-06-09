@@ -8,14 +8,13 @@ import User from "../models/user.model.js";
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",")
+    : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"];
+
 const io = new Server(server, {
     cors: {
-        // Allow any origin so the app works on phones/tablets on local network
-        // and in all dev environments. Lock this down to your domain in production.
-        origin: process.env.ALLOWED_ORIGINS
-            ? process.env.ALLOWED_ORIGINS.split(",")
-            : true,
-        credentials: true,
+        origin: allowedOrigins,
     },
 });
 
