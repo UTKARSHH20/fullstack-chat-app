@@ -19,6 +19,7 @@ const messageSchema = new mongoose.Schema(
             }
         ],
         status: { type: String, enum: ["sent", "delivered", "seen"], default: "sent" },
+        seeded: { type: Boolean, default: false },  // seed script only — never set by app
     },
     { timestamps: true }
 );
