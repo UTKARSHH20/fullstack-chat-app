@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
 import {
     Image, Images, Send, X, MessageSquare,
     ArrowLeft, Smile, Mic, Square,Loader2, 
@@ -206,30 +206,65 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
         setSending(false)
     }
 
-    // Scroll to bottom on new messages — but NOT when older messages are prepended by loadMore
-    const prevMsgCountRef = useRef(0)
-    useEffect(() => {
-        const added = messages.length - prevMsgCountRef.current
-        // isLoadingMore = we just prepended older messages; skip auto-scroll
-        if (added > 0 && !isLoadingMore) {
-            bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    const chatContainerRef = useRef(null)
+    const prevMessagesRef = useRef([])
+    const prevScrollHeightRef = useRef(0)
+    const prevScrollTopRef = useRef(0)
+
+    useLayoutEffect(() => {
+        const el = chatContainerRef.current
+        if (!el) return
+
+        const prevMessages = prevMessagesRef.current
+        const currentMessages = messages
+        prevMessagesRef.current = messages
+
+        // Initial load of messages for selected user
+        if (prevMessages.length === 0 && currentMessages.length > 0) {
+            el.scrollTop = el.scrollHeight
+            return
         }
-        prevMsgCountRef.current = messages.length
-    }, [messages.length, isLoadingMore])
+
+        // Check if messages were prepended (loaded older messages)
+        const wasPrepended =
+            prevMessages.length > 0 &&
+            currentMessages.length > prevMessages.length &&
+            currentMessages[currentMessages.length - 1]?._id === prevMessages[prevMessages.length - 1]?._id &&
+            currentMessages[0]?._id !== prevMessages[0]?._id
+
+        if (wasPrepended) {
+            const heightDifference = el.scrollHeight - prevScrollHeightRef.current
+            el.scrollTop = prevScrollTopRef.current + heightDifference
+            return
+        }
+
+        // Check if messages were appended (new message)
+        const wasAppended =
+            prevMessages.length > 0 &&
+            currentMessages.length > prevMessages.length &&
+            currentMessages[0]?._id === prevMessages[0]?._id &&
+            currentMessages[currentMessages.length - 1]?._id !== prevMessages[prevMessages.length - 1]?._id
+
+        if (wasAppended) {
+            const lastMsg = currentMessages[currentMessages.length - 1]
+            const isMyMsg = lastMsg.senderId === authUser?._id
+
+            // Scroll to bottom if it was our message, or if user is already near the bottom
+            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200
+            if (isMyMsg || isNearBottom) {
+                el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+            }
+        }
+    }, [messages, authUser?._id])
 
     // Scroll handler for loading older messages
-    const chatContainerRef = useRef(null)
     const handleScroll = useCallback(() => {
         const el = chatContainerRef.current
         if (!el || !hasMore || isLoadingMore) return
         if (el.scrollTop < 80) {
-            const prevHeight = el.scrollHeight
-            loadMoreMessages(selectedUser._id).then(() => {
-                // Restore scroll position after prepending
-                requestAnimationFrame(() => {
-                    el.scrollTop = el.scrollHeight - prevHeight
-                })
-            })
+            prevScrollHeightRef.current = el.scrollHeight
+            prevScrollTopRef.current = el.scrollTop
+            loadMoreMessages(selectedUser._id)
         }
     }, [hasMore, isLoadingMore, selectedUser, loadMoreMessages])
 
@@ -620,7 +655,7 @@ const mediaMessages = messages.filter(
     </div>
 )}
 
-            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1 overscroll-contain">
+            <div ref={chatContainerRef} onScroll={handleScroll} style={{ overflowAnchor: "none" }} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1 overscroll-contain">
                 {showNotes && (
     <div className="border-b border-base-200 p-3 bg-base-200">
         <div className="flex justify-between items-center mb-2">
