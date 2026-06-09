@@ -71,7 +71,30 @@ export default function Sidebar({
       className={`
             ${isMobileHidden ? 'hidden md:flex' : 'flex'}
             w-full md:w-72 shrink-0 flex-col border-r border-base-200 bg-base-100 h-full relative
-        `}
+        `}>
+            <div className="p-4 border-b border-base-200">
+                <div className="flex items-center justify-between mb-3">
+                    <div>
+    <h2 className="font-bold text-lg">
+        Messages
+        {onlineUsers.length > 0 && (
+            <span className="ml-2 badge badge-success badge-sm">
+                {onlineUsers.length} online
+            </span>
+        )}
+    </h2>
+
+ <p
+    className="text-[10px] text-base-content/40 underline decoration-dotted cursor-help"
+    title="Your chat backup is not set up. Go to Settings to configure it."
+>
+    Backup status: Not configured
+</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+    <button
+        className="btn btn-ghost btn-sm btn-circle"
+        title="Active Devices"
     >
       <div className="p-4 border-b border-base-200">
         <div className="flex items-center justify-between mb-3">
@@ -193,43 +216,85 @@ export default function Sidebar({
                                         : 'border-l-2 border-transparent'
                                     }
                                 `}
-              >
-                <div
-                  title={
-                    isOnline
-                      ? 'Currently Online'
-                      : user.lastSeen
-                        ? `Last active: ${formatTime(user.lastSeen)}`
-                        : 'Offline'
-                  }
-                >
-                  <Avatar user={user} isOnline={isOnline} />
-                </div>
-              </button>
-            )
+                            >
+                                <div
+    title={
+        isOnline
+            ? "Currently Online"
+            : user.lastSeen
+            ? `Last active: ${formatTime(user.lastSeen)}`
+            : "Offline"
+    }
+>
+    <Avatar user={user} isOnline={isOnline} />
+</div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1 min-w-0">
+                                            <p className="font-medium text-sm truncate">{user.name}</p>
+                                            {folder === "Archived" && (
+                                                <span className="badge badge-warning badge-xs">Archived</span>
+                                            )}
+                                        </div>
+                                        {lm?.createdAt && (
+                                            <span className="text-[10px] text-base-content/40 shrink-0 ml-2">
+                                                {formatTime(lm.createdAt)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1 mt-1">
+                                        <div className="text-xs text-base-content/50 truncate">
+                                            {user.statusMood && getStatusMoodLabel(user.statusMood)}
+                                        </div>
+                                        <Palette
+                                            className="w-3 h-3 text-primary shrink-0"
+                                            title="Chat personalization available"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1">
+                                        {folder === "Archived" ? (
+                                            <p className="text-xs text-warning truncate">
+                                                Archived Conversation
+                                            </p>
+                                        ) : typingUsers.includes(user._id) ? (
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+                                                <p className="text-xs text-success font-bold truncate">
+                                                    typing...
+                                                </p>
+                                            </div>
+                                        ) : preview ? (
+                                            <p className="text-xs text-base-content/50 truncate">
+                                                {preview}
+                                            </p>
+                                        ) : (
+                                            <div className="flex items-center gap-1">
+                                                <span
+                                                    className={`w-2 h-2 rounded-full ${
+                                                        isOnline ? "bg-success" : "bg-base-300"
+                                                    }`}
+                                                />
+                                                <p className={`text-xs ${isOnline ? "text-success" : "text-base-content/40"}`}>
+                                                    {isOnline
+                                                        ? "Active now"
+                                                        : user.lastSeen
+                                                        ? `Last active ${formatTime(user.lastSeen)}`
+                                                        : "Offline"}
+                                                </p>
+                                            </div>
+                                        )}
 
-            ;<div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium text-sm truncate">{user.name}</p>
-
-                    {folder === 'Archived' && (
-                      <span className="badge badge-warning badge-xs">
-                        Archived
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="text-xs text-base-content/50 truncate mt-1">
-                {user.statusMood && getStatusMoodLabel(user.statusMood)}
-              </div>
-
-              <Palette
-                className="w-3 h-3 text-primary shrink-0"
-                title="Chat personalization available"
-              />
+                                        {user.unreadCount > 0 && (
+                                            <span className="badge badge-primary badge-xs ml-1 shrink-0">
+                                                {user.unreadCount > 99 ? "99+" : user.unreadCount}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </button>
+                        )
+                    }))
+                }
             </div>
             {
               lm?.createdAt && (
