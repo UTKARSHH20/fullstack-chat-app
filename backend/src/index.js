@@ -6,6 +6,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import compression from "compression"; // <-- Clean & Simple Import
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -40,6 +41,7 @@ app.use(cors({
         : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     credentials: true,
 }));
+app.use(compression()); // <-- Gzip Compression Added Right Here
 app.use(helmet({ contentSecurityPolicy: false }));
 // GSSoC Issue #35 Fix
 app.disable("x-powered-by");

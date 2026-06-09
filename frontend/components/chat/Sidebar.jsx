@@ -204,59 +204,36 @@ const activeChats = onlineUsers.length
     <Avatar user={user} isOnline={isOnline} />
 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-1 min-w-0">
-                                                <p className="font-medium text-sm truncate">
-                                                    {user.name}
-                                                </p>
-
-                                                {folder === "Archived" && (
-                                                    <span className="badge badge-warning badge-xs">
-                                                        Archived
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {user.statusMood && (
-                                                <p className="text-xs text-base-content/50 truncate mt-1">
-                                                    {getStatusMoodLabel(user.statusMood)}
-                                                </p>
-                                            )}
-
-                                            {user.shareActivity && user.currentActivity && (
-                                                <div className="mt-2">
-                                                    <LiveActivityBadge
-                                                        currentActivity={user.currentActivity}
-                                                        compact
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {user.isListening && (
-                                                <ListeningStatusBadge
-                                                    currentTrack={user.currentTrack}
-                                                    currentArtist={user.currentArtist}
-                                                    compact
-                                                />
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1 min-w-0">
+                                            <p className="font-medium text-sm truncate">{user.name}</p>
+                                            {folder === "Archived" && (
+                                                <span className="badge badge-warning badge-xs">Archived</span>
                                             )}
                                         </div>
-
                                         {lm?.createdAt && (
                                             <span className="text-[10px] text-base-content/40 shrink-0">
                                                 {formatTime(lm.createdAt)}
                                             </span>
                                         )}
                                     </div>
-
-                                    <div className="flex items-center justify-between mt-2">
+                                    <div className="flex items-center justify-between gap-1 mt-1">
+                                        <div className="text-xs text-base-content/50 truncate">
+                                            {user.statusMood && getStatusMoodLabel(user.statusMood)}
+                                        </div>
+                                        <Palette
+                                            className="w-3 h-3 text-primary shrink-0"
+                                            title="Chat personalization available"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1">
                                         {folder === "Archived" ? (
                                             <p className="text-xs text-warning truncate">
                                                 Archived Conversation
                                             </p>
                                         ) : typingUsers.includes(user._id) ? (
                                             <div className="flex items-center gap-1">
-                                                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                                                <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
                                                 <p className="text-xs text-success font-bold truncate">
                                                     typing...
                                                 </p>
