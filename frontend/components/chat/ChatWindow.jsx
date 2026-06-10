@@ -150,6 +150,13 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
             getMessages(selectedUser._id)
             subscribeToMessages()
         }
+
+useEffect(() => {
+    if (selectedUser && textareaRef.current) {
+        textareaRef.current.focus();
+    }
+}, [selectedUser]);
+
         return () => unsubscribeFromMessages()
     }, [selectedUser, getMessages, subscribeToMessages, unsubscribeFromMessages])
 
