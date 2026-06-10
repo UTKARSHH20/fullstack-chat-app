@@ -5,7 +5,9 @@ import useAuthStore from "../../src/store/useAuthStore"
 import { getSocket } from "../../lib/socket"
 import Avatar from "./Avatar"
 import NewChatModal from "./NewChatModal"
+import LiveActivityBadge from "../LiveActivityBadge"
 import { getStatusMoodLabel } from "../../src/lib/statusMoods"
+import ListeningStatusBadge from "../ListeningStatusBadge"
 
 const formatTime = (d) =>
     new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -210,7 +212,7 @@ const activeChats = onlineUsers.length
                                             )}
                                         </div>
                                         {lm?.createdAt && (
-                                            <span className="text-[10px] text-base-content/40 shrink-0 ml-2">
+                                            <span className="text-[10px] text-base-content/40 shrink-0">
                                                 {formatTime(lm.createdAt)}
                                             </span>
                                         )}

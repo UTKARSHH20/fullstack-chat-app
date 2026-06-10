@@ -3,9 +3,12 @@ import { Camera, Pencil } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
 import StatusMoodSelector from "../components/StatusMoodSelector"
+import ListeningStatusBadge from "../components/ListeningStatusBadge"
+import ListeningStatusSelector from "../components/ListeningStatusSelector"
+import LiveActivityBadge from "../components/LiveActivityBadge"
 
 export default function ProfilePage() {
-    const { authUser: user, updateProfile, updateProfilePicture, isLoading } = useAuthStore()
+    const { authUser: user, updateProfile, updateProfilePicture, updateStatusMood, updateListeningStatus, isLoading } = useAuthStore()
     const [formData, setFormData] = useState({
         name: user?.name || "",
     })
@@ -13,10 +16,21 @@ export default function ProfilePage() {
     const [selectedFile, setSelectedFile] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
     const [selectedMood, setSelectedMood] = useState(user?.statusMood || null)
+    const [selectedTrack, setSelectedTrack] = useState(user?.currentTrack || "")
+    const [selectedArtist, setSelectedArtist] = useState(user?.currentArtist || "")
+    const [listeningEnabled, setListeningEnabled] = useState(user?.isListening || false)
+    const [shareActivity, setShareActivity] = useState(user?.shareActivity ?? true)
 
     useEffect(() => {
         setSelectedMood(user?.statusMood || null)
     }, [user?.statusMood])
+
+    useEffect(() => {
+        setSelectedTrack(user?.currentTrack || "")
+        setSelectedArtist(user?.currentArtist || "")
+        setListeningEnabled(user?.isListening || false)
+        setShareActivity(user?.shareActivity ?? true)
+    }, [user?.currentTrack, user?.currentArtist, user?.isListening])
 
     const handleMoodChange = async (mood) => {
         const previousMood = selectedMood
@@ -25,6 +39,42 @@ export default function ProfilePage() {
             await updateStatusMood(mood)
         } catch {
             setSelectedMood(previousMood)
+        }
+    }
+
+    const handleListeningSave = async ({ currentTrack, currentArtist, isListening }) => {
+        const previousTrack = selectedTrack
+        const previousArtist = selectedArtist
+        const previousEnabled = listeningEnabled
+
+        setSelectedTrack(currentTrack)
+        setSelectedArtist(currentArtist)
+        setListeningEnabled(isListening)
+
+        try {
+            await updateListeningStatus({ currentTrack, currentArtist, isListening })
+        } catch {
+            setSelectedTrack(previousTrack)
+            setSelectedArtist(previousArtist)
+            setListeningEnabled(previousEnabled)
+        }
+    }
+
+    const handleListeningClear = async () => {
+        const previousTrack = selectedTrack
+        const previousArtist = selectedArtist
+        const previousEnabled = listeningEnabled
+
+        setSelectedTrack("")
+        setSelectedArtist("")
+        setListeningEnabled(false)
+
+        try {
+            await updateListeningStatus({ currentTrack: "", currentArtist: "", isListening: false })
+        } catch {
+            setSelectedTrack(previousTrack)
+            setSelectedArtist(previousArtist)
+            setListeningEnabled(previousEnabled)
         }
     }
 
@@ -146,6 +196,34 @@ export default function ProfilePage() {
                                     disabled={isLoading}
                                 />
                             </div>
+                        </div>
+
+                        <div className="space-y-5">
+                            {user?.shareActivity === false && (
+                                <div className="alert alert-info shadow-sm">
+                                    <p className="text-sm">
+                                        Your live activity is hidden from contacts. Enable sharing in Settings to make it visible.
+                                    </p>
+                                </div>
+                            )}
+                            {user?.shareActivity && user?.currentActivity && (
+                                <LiveActivityBadge currentActivity={user.currentActivity} />
+                            )}
+                            {user?.isListening && (
+                                <ListeningStatusBadge
+                                    currentTrack={user.currentTrack}
+                                    currentArtist={user.currentArtist}
+                                />
+                            )}
+
+                            <ListeningStatusSelector
+                                currentTrack={selectedTrack}
+                                currentArtist={selectedArtist}
+                                isListening={listeningEnabled}
+                                onSave={handleListeningSave}
+                                onClear={handleListeningClear}
+                                disabled={isLoading}
+                            />
                         </div>
 
                         <div className="form-control">

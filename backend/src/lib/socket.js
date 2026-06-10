@@ -46,6 +46,22 @@ export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
     io.emit("statusMoodUpdated", { userId, statusMood });
 };
 
+export const broadcastListeningStatusUpdate = ({ userId, currentTrack, currentArtist, isListening }) => {
+    io.emit("listeningStatusUpdated", { userId, currentTrack, currentArtist, isListening });
+};
+
+export const broadcastActivityStarted = ({ userId, currentActivity }) => {
+    io.emit("activityStarted", { userId, currentActivity });
+};
+
+export const broadcastActivityUpdated = ({ userId, currentActivity }) => {
+    io.emit("activityUpdated", { userId, currentActivity });
+};
+
+export const broadcastActivityEnded = ({ userId }) => {
+    io.emit("activityEnded", { userId });
+};
+
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
  * Adjust the database query inside based on whether you track relationships via 
@@ -181,6 +197,15 @@ io.on("connection", (socket) => {
             delete userSocketMap[userId];
             // Update lastSeen when they completely disconnect (if not updated recently)
             await throttledUpdateLastSeen(userId);
+            try {
+                const user = await User.findById(userId).select("currentActivity shareActivity");
+                if (user?.shareActivity && user?.currentActivity) {
+                    await User.findByIdAndUpdate(userId, { currentActivity: "" });
+                    io.emit("activityEnded", { userId });
+                }
+            } catch (err) {
+                console.error("Error clearing activity on disconnect:", err);
+            }
             // Clean up our local cache memory since the user is fully offline
             lastDbUpdateCache.delete(userId);
         }
