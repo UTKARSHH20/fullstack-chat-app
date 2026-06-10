@@ -30,15 +30,30 @@ for (const envVar of REQUIRED_ENV_VARS) {
     }
 }
 
+// Ensure production has an explicit client URL configured
+if (process.env.NODE_ENV === "production" && !process.env.CLIENT_URL) {
+    console.error("FATAL ERROR: Environment variable CLIENT_URL is required in production.");
+    process.exit(1);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Core Security & Parser Middleware Layer
 // Security Middleware Layer
+// Restrict CORS to an explicit allowlist. In production the allowed origin
+// is taken from CLIENT_URL. In development we allow localhost dev ports.
+const allowedOrigins = process.env.NODE_ENV === "production"
+    ? [process.env.CLIENT_URL]
+    : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"];
+
 app.use(cors({
-    origin: process.env.NODE_ENV === "production"
-        ? true
-        : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g., curl, mobile apps, server-to-server)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+        return callback(new Error("CORS policy: Origin not allowed"), false);
+    },
     credentials: true,
 }));
 app.use(compression()); // <-- Gzip Compression Added Right Here
@@ -146,6 +161,20 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // System Boot
+const startServer = async () => {
+    try {
+        await connectDB();
+        // GSSoC Issue #45 Fix
+        server.listen(PORT, () => {
+            console.log(`[INFO] Server successfully running on port ${PORT}`);
+        });
+    } catch (err) {
+        console.error("FATAL ERROR: Failed to connect to the database on startup.", err);
+        process.exit(1);
+    }
+};
+
+startServer();
 server.listen(PORT, () => {
     // GSSoC Issue #45 Fix
     console.log(`[INFO] Server successfully running on port ${PORT}`);
