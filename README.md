@@ -78,7 +78,7 @@
 - 🔍 **New Chat search** — find any registered user by name
 - 🎨 **32 switchable themes** — DaisyUI grid, persisted across sessions
 - 🔐 **JWT & Google OAuth** — HTTP-only cookies, secure password hashing, and Google sign-in
-- 🛡️ **Security Hardening** — Helmet headers, auth endpoint rate-limiting, and server-side input validation
+- 🛡️ **Security Hardening** — Helmet headers, dual IP + per-user auth rate-limiting, and server-side input validation
 
     </td>
   </tr>
@@ -314,7 +314,7 @@ fullstack-chat-app/
 1. **Local Authentication:** User signs up → password hashed with `bcryptjs` (10 salt rounds). On login, a JWT is signed with **15-day expiry** and set as an HTTP-only, secure, `SameSite=Strict` cookie.
 2. **Google OAuth:** User logs in/signs up via Google Identity Services → ID token verified server-side via `google-auth-library` → user account created/resolved → JWT cookie issued.
 3. **Session Persistence:** On page refresh, `checkAuth()` re-validates the session cookie and reconnects the WebSockets.
-4. **Security Middleware:** All authentication endpoints are rate-limited (max 20 requests per 15 minutes), and express inputs are validated using custom middleware. All response headers are secured via Helmet.
+4. **Security Middleware:** All authentication endpoints are rate-limited with dual IP-based and per-user limits (max 20 requests per 15 minutes each), and express inputs are validated using custom middleware. All response headers are secured via Helmet.
 
 ---
 
