@@ -174,6 +174,11 @@ io.on("connection", (socket) => {
         receiverSockets.forEach(s => io.to(s).emit("callRejected"));
     });
 
+    socket.on("callCanceled", ({ to }) => {
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("callCanceled"));
+    });
+
     socket.on("disconnect", async () => {
         userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
         
