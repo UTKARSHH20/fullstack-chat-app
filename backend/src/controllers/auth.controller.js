@@ -282,79 +282,87 @@ export async function subscribeToPush(req, res) {
     }
 }
 
-export const emailVerification = async(req, res) => {
-    try {
-        const {email} = req.body
-        
-        if(!email) {
-            return res.status(400).json({message: "Email Required"});
-        }
-        const user = await User.findOne({email});
+export const emailVerification = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
 
-       if (!user) {
-    return res.status(404).json({
-        success: false,
-        message: "No account found with this email"
-    });
-}
-
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-        user.otp = otp;
-        user.otpExpires = Date.now() + 5 * 60 * 1000;
-        await user.save();
-
-        await transporter.sendMail({
-            from: process.env.EMAIL,
-            to: email,
-            subject: "Email Verification OTP",
-            html: `<h2>Email Verification</h2>
-            <p>Your Otp Is :<b>${otp}</b></p>
-            <p>This Otp Is Valid For 5 Minutes. Use This Otp TO Verify Your Account</p>`
-        });
-
-        res.status(200).json({message: "Otp Send Successfully"});
-    } catch (error) {
-        console.error("EmailVerification Error :", error.message);
-        res.status(500).json({message: "Failed To Verified Email"});
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
     }
-}
 
-export const verifyOtp = async(req, res) => {
-   try {
-     const {email, otp} = req.body;
- 
-    if(!email) {
-             return res.status(400).json({message: "Email Required"});
-     }
- 
-     if(!otp) {
-         return res.status(400).json({message: "Otp Required"});
-     }
- 
-     const user = await User.findOne({email});
- 
-     if(!user) {
-         return res.status(404).json({message: "User Not Found"});
-     }
- 
-     if(user.otp !== otp) {
-         return res.status(400).json({message: "Invalid Otp"});
-     }
- 
-     if(user.otpExpires < Date.now()) {
-         return res.status(400).json({message: "Otp Expired"});
-     }
- 
-     user.isVerified = true;
-     user.otp = null;
-     user.otpExpires = null;
- 
-     await user.save();
- 
-     res.status(200).json({message: "Email Verified"});
-   } catch (error) {
-        res.status(500).json({message: "Error While Verified Email Account", error});
-        console.log(error);
-   }
-}
+    if (user.isVerified) {
+      return res.status(400).json({
+        message: "Email already verified",
+      });
+    }
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    user.otp = otp;
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
+
+    await user.save();
+
+    await transporter.sendMail({
+      from: process.env.EMAIL,
+      to: user.email,
+      subject: "Email Verification OTP",
+      html: `<h2>Email Verification</h2>
+             <p>Your OTP is: <b>${otp}</b></p>`,
+    });
+
+    res.status(200).json({
+      message: "OTP sent successfully",
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to send OTP",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { otp } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({
+        message: "Invalid OTP",
+      });
+    }
+
+    if (user.otpExpires < Date.now()) {
+      return res.status(400).json({
+        message: "OTP expired",
+      });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpires = null;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Email verified successfully",
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Verification failed",
+    });
+  }
+};

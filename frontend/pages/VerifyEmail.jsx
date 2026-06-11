@@ -9,8 +9,6 @@ const VerifyEmail = () => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const email = localStorage.getItem("verifyEmail");
-
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
 
@@ -22,18 +20,14 @@ const VerifyEmail = () => {
       setLoading(true);
 
       const res = await axios.post(
-        "http://localhost:5001/api/auth/Verified-account",
-        {
-          email,
-          otp,
-        }
-      );
+  "http://localhost:5001/api/auth/Verified-account",
+  { otp },
+  { withCredentials: true }
+);
 
       toast.success(res.data.message);
 
-      localStorage.removeItem("verifyEmail");
-
-      navigate("/login");
+      navigate("/");
     } catch (error) {
       toast.error(
         error.response?.data?.message ||
@@ -47,11 +41,10 @@ const VerifyEmail = () => {
   const handleResendOtp = async () => {
     try {
       const res = await axios.post(
-        "http://localhost:5001/api/auth/send-verification-email-otp",
-        {
-          email,
-        }
-      );
+  "http://localhost:5001/api/auth/send-verification-email-otp",
+  {},
+  { withCredentials: true }
+);
 
       toast.success(res.data.message);
     } catch (error) {
@@ -72,10 +65,6 @@ const VerifyEmail = () => {
 
         <p className="text-center text-gray-500 mb-6">
           Enter the OTP sent to
-        </p>
-
-        <p className="text-center font-semibold mb-6">
-          {email}
         </p>
 
         <form onSubmit={handleVerifyOtp}>
