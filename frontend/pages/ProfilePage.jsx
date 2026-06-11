@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Camera, Pencil } from "lucide-react"
 import toast from "react-hot-toast"
 import useAuthStore from "../src/store/useAuthStore"
-import StatusMoodSelector from "../components/StatusMoodSelector"
+import { useNavigate } from "react-router-dom";
 
 export default function ProfilePage() {
     const { authUser: user, updateProfile, updateProfilePicture, isLoading } = useAuthStore()
@@ -12,21 +12,8 @@ export default function ProfilePage() {
     const [previewImage, setPreviewImage] = useState(user?.profilePicture || null)
     const [selectedFile, setSelectedFile] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
-    const [selectedMood, setSelectedMood] = useState(user?.statusMood || null)
-
-    useEffect(() => {
-        setSelectedMood(user?.statusMood || null)
-    }, [user?.statusMood])
-
-    const handleMoodChange = async (mood) => {
-        const previousMood = selectedMood
-        setSelectedMood(mood)
-        try {
-            await updateStatusMood(mood)
-        } catch {
-            setSelectedMood(previousMood)
-        }
-    }
+    const [isEmailOtp, SetIsEmailOtp] = useState(false);
+      const navigate = useNavigate();
 
     const handleFileChange = (e) => {
         const file = e.target.files[0]
@@ -121,6 +108,14 @@ export default function ProfilePage() {
                                     Edit
                                 </button>
                             ) : null}
+                            {!user?.isVerified && (
+    <button
+        onClick={() => navigate("/send-verify-email-otp")}
+        className="btn btn-primary"
+    >
+        Verify Email
+    </button>
+)}
                         </div>
                     </div>
 

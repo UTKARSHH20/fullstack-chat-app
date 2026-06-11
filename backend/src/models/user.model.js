@@ -33,25 +33,16 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed,
         default: null,
     },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
     lastSeen: {
         type: Date,
         default: Date.now,
     },
-    statusMood: {
-        type: String,
-        enum: [
-            "coding",
-            "coffee_break",
-            "studying",
-            "gaming",
-            "working",
-            "sleeping",
-            "music",
-            "away",
-        ],
-        default: null,
-        trim: true,
-    },
+    otp: String,
+    otpExpires: Date
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

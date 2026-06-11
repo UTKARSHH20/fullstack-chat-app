@@ -23,6 +23,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.1",
+    "nodemailer": "^8.0.11",
     "socket.io": "^4.8.3",
     "web-push": "^3.6.7",
     "xss": "^1.0.15"

@@ -3,6 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
 import { generateTokenAndSetCookie, catchAsync } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
+import transporter from "../utils/nodemailer.js"
 
 let googleClient;
 
@@ -247,4 +248,95 @@ export const subscribeToPush = catchAsync(async (req, res) => {
         }).select("-password -__v");
         
         res.status(200).json({ message: "Push subscription saved" });
+    } catch (err) {
+        console.error("subscribeToPush:", err.message);
+        res.status(500).json({ message: "Could not save push subscription" });
+    }
+}
+
+export const emailVerification = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        message: "Email already verified",
+      });
+    }
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    user.otp = otp;
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
+
+    await user.save();
+
+    await transporter.sendMail({
+      from: process.env.EMAIL,
+      to: user.email,
+      subject: "Email Verification OTP",
+      html: `<h2>Email Verification</h2>
+             <p>Your OTP is: <b>${otp}</b></p>`,
+    });
+
+    res.status(200).json({
+      message: "OTP sent successfully",
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Failed to send OTP",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { otp } = req.body;
+
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({
+        message: "Invalid OTP",
+      });
+    }
+
+    if (user.otpExpires < Date.now()) {
+      return res.status(400).json({
+        message: "OTP expired",
+      });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpires = null;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Email verified successfully",
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Verification failed",
+    });
+  }
+};
 });
