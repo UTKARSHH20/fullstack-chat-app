@@ -6,6 +6,23 @@ import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 
 const app = express();
+// Cache to track last DB update time per user
+const lastDbUpdateCache = new Map();
+
+// Throttled lastSeen updater - max once every 30 seconds per user
+const throttledUpdateLastSeen = async (userId) => {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId) || 0;
+    
+    if (now - lastUpdate < 30000) return; // 30 second throttle
+    
+    lastDbUpdateCache.set(userId, now);
+    try {
+        await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+    } catch (err) {
+        console.error("Error updating lastSeen:", err);
+    }
+};
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -70,7 +87,6 @@ const canCommunicate = async (senderId, receiverId) => {
     }
 };
 
-io.on("connection", (socket) => {
 const getActiveContacts = async (userId) => {
     try {
         const [senders, receivers] = await Promise.all([
