@@ -13,7 +13,7 @@ router.put("/update-profile", protectRoute, updateProfile);
 router.put("/update-profile-picture", protectRoute, updateProfilePicture);
 router.get("/check", protectRoute, checkAuth);
 router.post("/push-subscribe", protectRoute, subscribeToPush);
-router.post("/send-verification-email-otp", emailVerification);
-router.post("/Verified-account", verifyOtp);
+router.post("/send-verification-email-otp",protectRoute, emailVerification);
+router.post("/Verified-account",protectRoute, verifyOtp);
 
 export default router;
