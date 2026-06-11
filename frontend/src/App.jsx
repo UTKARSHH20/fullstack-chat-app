@@ -12,6 +12,8 @@ import SavedMessagesPage from "../pages/SavedMessagesPage"
 import CallHandler from "../components/CallHandler"
 import useAuthStore from "./store/useAuthStore"
 import useCallStore from "./store/useCallStore"
+import VerifyEmail from "../pages/VerifyEmail"
+import SendVerifyEmailOtp from "../pages/SendVerifyEmailOtp";
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore()
@@ -49,6 +51,8 @@ const App = () => {
           <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
           <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
           <Route path="/saved" element={authUser ? <SavedMessagesPage /> : <Navigate to="/login" />} />
+          <Route path="/verify-Email" element={authUser ? <VerifyEmail /> : <Navigate to="/login" />} />
+          <Route path="/send-verify-email-otp" element={authUser ? <SendVerifyEmailOtp /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

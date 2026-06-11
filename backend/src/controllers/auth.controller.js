@@ -284,7 +284,7 @@ export async function subscribeToPush(req, res) {
 
 export const emailVerification = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.userId);
 
     if (!user) {
       return res.status(404).json({
@@ -320,6 +320,7 @@ export const emailVerification = async (req, res) => {
     });
 
   } catch (error) {
+    console.log(error);
     res.status(500).json({
       message: "Failed to send OTP",
     });
@@ -330,7 +331,7 @@ export const verifyOtp = async (req, res) => {
   try {
     const { otp } = req.body;
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.userId);
 
     if (!user) {
       return res.status(404).json({
