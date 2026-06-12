@@ -1,10 +1,10 @@
-import bcrypt from "bcryptjs";
-import { OAuth2Client } from "google-auth-library";
-import User from "../models/user.model.js";
-import { generateTokenAndSetCookie, catchAsync } from "../lib/utils.js";
-import cloudinary from "../lib/cloudinary.js";
+import bcrypt from 'bcryptjs'
+import { OAuth2Client } from 'google-auth-library'
+import User from '../models/user.model.js'
+import { generateTokenAndSetCookie, catchAsync } from '../lib/utils.js'
+import cloudinary from '../lib/cloudinary.js'
 
-let googleClient;
+let googleClient
 
 /**
  * Lazy-initializes and returns a singleton instance of the Google OAuth2 client.
@@ -12,15 +12,15 @@ let googleClient;
  * * @returns {OAuth2Client} The initialized Google Client instance.
  */
 const getGoogleClient = () => {
-    if (!googleClient) {
-        const clientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
-        if (!clientId) {
-            console.warn("WARNING: GOOGLE_CLIENT_ID environment variable is not set!");
-        }
-        googleClient = new OAuth2Client(clientId);
+  if (!googleClient) {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim()
+    if (!clientId) {
+      console.warn('WARNING: GOOGLE_CLIENT_ID environment variable is not set!')
     }
-    return googleClient;
-};
+    googleClient = new OAuth2Client(clientId)
+  }
+  return googleClient
+}
 
 /**
  * Handles local user registration (Signup).
@@ -29,33 +29,35 @@ const getGoogleClient = () => {
  * @param {Object} res - Express response object.
  */
 export const signup = catchAsync(async (req, res) => {
-    const { name, email, password } = req.body;
-        const existing = await User.findOne({ email });
-        if (existing) {
-            return res.status(409).json({ message: "An account with this email already exists" });
-        }
+  const { name, email, password } = req.body
+  const existing = await User.findOne({ email })
+  if (existing) {
+    return res
+      .status(409)
+      .json({ message: 'An account with this email already exists' })
+  }
 
-        // Secure password hashing with 10 salt rounds
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // Sanitize string attributes before insertion
-        const user = await User.create({ 
-            name: name.trim(), 
-            email: email.toLowerCase().trim(), 
-            password: hashedPassword 
-        });
+  // Secure password hashing with 10 salt rounds
+  const hashedPassword = await bcrypt.hash(password, 10)
 
-        // Set secure HTTP-Only authentication cookie
-        generateTokenAndSetCookie(user._id, res);
-        
-        res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            profilePicture: user.profilePicture,
-            statusMood: user.statusMood || null,
-        });
-});
+  // Sanitize string attributes before insertion
+  const user = await User.create({
+    name: name.trim(),
+    email: email.toLowerCase().trim(),
+    password: hashedPassword,
+  })
+
+  // Set secure HTTP-Only authentication cookie
+  generateTokenAndSetCookie(user._id, res)
+
+  res.status(201).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    profilePicture: user.profilePicture,
+    statusMood: user.statusMood || null,
+  })
+})
 
 /**
  * Handles local user authentication (Login).
@@ -64,28 +66,28 @@ export const signup = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export const login = catchAsync(async (req, res) => {
-    const { email, password } = req.body;
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user || !user.password) {
-            return res.status(401).json({ message: "Invalid email or password" });
-        }
+  const { email, password } = req.body
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+  if (!user || !user.password) {
+    return res.status(401).json({ message: 'Invalid email or password' })
+  }
 
-        // Timing-safe verification of the incoming password against hash
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) {
-            return res.status(401).json({ message: "Invalid email or password" });
-        }
+  // Timing-safe verification of the incoming password against hash
+  const valid = await bcrypt.compare(password, user.password)
+  if (!valid) {
+    return res.status(401).json({ message: 'Invalid email or password' })
+  }
 
-        generateTokenAndSetCookie(user._id, res);
-        
-        res.status(200).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            profilePicture: user.profilePicture,
-            statusMood: user.statusMood || null,
-        });
-});
+  generateTokenAndSetCookie(user._id, res)
+
+  res.status(200).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    profilePicture: user.profilePicture,
+    statusMood: user.statusMood || null,
+  })
+})
 
 /**
  * Handles single-tap Google OAuth2 federated authentication transactions.
@@ -94,51 +96,68 @@ export const login = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export const googleAuth = catchAsync(async (req, res) => {
-    const { credential } = req.body;
-    if (!credential) {
-        return res.status(400).json({ message: "Google credential is required" });
+  const { credential } = req.body
+  if (!credential) {
+    return res.status(400).json({ message: 'Google credential is required' })
+  }
+
+  const client = getGoogleClient()
+  const cleanClientId = (process.env.GOOGLE_CLIENT_ID || '').trim()
+
+  // Verify token authenticity against Google's authorization servers
+  const ticket = await client.verifyIdToken({
+    idToken: credential,
+    audience: cleanClientId,
+  })
+
+  const { sub: googleId, email, name, picture } = ticket.getPayload()
+  let user = await User.findOne({ $or: [{ googleId }, { email }] })
+
+  if (!user) {
+    // Provision a new password-less account for federated identities
+    user = await User.create({
+      googleId,
+      name,
+      email,
+      password: null,
+      profilePicture: picture || '',
+    })
+  } else if (!user.googleId) {
+    // Link existing local account to Google identity context
+    user.googleId = googleId
+    if (!user.profilePicture && picture) {
+      user.profilePicture = picture
     }
+    await user.save()
+  }
 
-        const client = getGoogleClient();
-        const cleanClientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
-        
-        // Verify token authenticity against Google's authorization servers
-        const ticket = await client.verifyIdToken({
-            idToken: credential,
-            audience: cleanClientId,
-        });
-        
-        const { sub: googleId, email, name, picture } = ticket.getPayload();
-        let user = await User.findOne({ $or: [{ googleId }, { email }] });
+  generateTokenAndSetCookie(user._id, res)
 
-        if (!user) {
-            // Provision a new password-less account for federated identities
-            user = await User.create({
-                googleId,
-                name,
-                email,
-                password: null,
-                profilePicture: picture || "",
-            });
-        } else if (!user.googleId) {
-            // Link existing local account to Google identity context
-            user.googleId = googleId;
-            if (!user.profilePicture && picture) {
-                user.profilePicture = picture;
-            }
-            await user.save();
-        }
+  res.status(200).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    profilePicture: user.profilePicture,
+    statusMood: user.statusMood || null,
+  })
+})
 
-        generateTokenAndSetCookie(user._id, res);
-        
-        res.status(200).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            profilePicture: user.profilePicture,
-            statusMood: user.statusMood || null,
-        });
-});
+export const githubRedirect = (req, res) => {
+  const clientId = process.env.GITHUB_CLIENT_ID
+
+  const redirectUri = `${process.env.BACKEND_URL}/api/auth/github/callback`
+
+  console.log('client_id:',clientId);
+  console.log('Backendurl:',process.env.BACKEND_URL)
+  console.log('redirecturl:',redirectUri);
+
+  return res.redirect(
+    `https://github.com/login/oauth/authorize` +
+      `?client_id=${clientId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&scope=read:user user:email`,
+  )
+}
 
 /**
  * Destroys the active user authentication session.
@@ -147,13 +166,15 @@ export const googleAuth = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export function logout(req, res) {
-    res.cookie("jwt", "", {
-        maxAge: 0,
-        httpOnly: true,
-        sameSite: "strict",
-        secure: process.env.NODE_ENV !== "development" || process.env.FORCE_SECURE_COOKIES === "true"
-    });
-    res.status(200).json({ message: "Logged out" });
+  res.cookie('jwt', '', {
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: 'strict',
+    secure:
+      process.env.NODE_ENV !== 'development' ||
+      process.env.FORCE_SECURE_COOKIES === 'true',
+  })
+  res.status(200).json({ message: 'Logged out' })
 }
 
 /**
@@ -163,24 +184,30 @@ export function logout(req, res) {
  * @param {Object} res - Express response object.
  */
 export const updateProfile = catchAsync(async (req, res) => {
-    const { name } = req.body;
-    if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 50) {
-        return res.status(400).json({ message: "Name must be between 2 and 50 characters" });
-    }
-        const updates = { name: name.trim() };
+  const { name } = req.body
+  if (
+    typeof name !== 'string' ||
+    name.trim().length < 2 ||
+    name.trim().length > 50
+  ) {
+    return res
+      .status(400)
+      .json({ message: 'Name must be between 2 and 50 characters' })
+  }
+  const updates = { name: name.trim() }
 
-        // Enforce strong projection filters during model update cycles
-        const user = await User.findByIdAndUpdate(
-            req.userId,
-            { $set: updates },
-            { new: true }
-        ).select("-password -__v");
+  // Enforce strong projection filters during model update cycles
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    { $set: updates },
+    { new: true },
+  ).select('-password -__v')
 
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        res.status(200).json(user);
-});
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' })
+  }
+  res.status(200).json(user)
+})
 
 /**
  * Intercepts incoming profile photo attachments and synchronizes storage maps with Cloudinary.
@@ -189,35 +216,37 @@ export const updateProfile = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export const updateProfilePicture = catchAsync(async (req, res) => {
-    // GSSoC Issue #47 Fix
-    if (!req.userId) {
-        return res.status(401).json({ message: "Unauthorized: Invalid user session ID" });
-    }
-    const { profilePicture } = req.body;
-    if (!profilePicture) {
-        return res.status(400).json({ message: "No image provided" });
-    }
+  // GSSoC Issue #47 Fix
+  if (!req.userId) {
+    return res
+      .status(401)
+      .json({ message: 'Unauthorized: Invalid user session ID' })
+  }
+  const { profilePicture } = req.body
+  if (!profilePicture) {
+    return res.status(400).json({ message: 'No image provided' })
+  }
 
-    // Validate base64 payload size (roughly: length * 3/4) is under 5MB (5,242,880 bytes)
-    const approximateSizeBytes = (profilePicture.length * 3) / 4;
-    if (approximateSizeBytes > 5 * 1024 * 1024) {
-        return res.status(400).json({ message: "Image size exceeds the 5MB limit" });
-    }
+  // Validate base64 payload size (roughly: length * 3/4) is under 5MB (5,242,880 bytes)
+  const approximateSizeBytes = (profilePicture.length * 3) / 4
+  if (approximateSizeBytes > 5 * 1024 * 1024) {
+    return res.status(400).json({ message: 'Image size exceeds the 5MB limit' })
+  }
 
-        const upload = await cloudinary.uploader.upload(profilePicture);
-        
-        // Strip sensitive credentials from returning memory layers
-        const user = await User.findByIdAndUpdate(
-            req.userId,
-            { profilePicture: upload.secure_url },
-            { new: true }
-        ).select("-password -__v");
+  const upload = await cloudinary.uploader.upload(profilePicture)
 
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        res.status(200).json(user);
-});
+  // Strip sensitive credentials from returning memory layers
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    { profilePicture: upload.secure_url },
+    { new: true },
+  ).select('-password -__v')
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' })
+  }
+  res.status(200).json(user)
+})
 
 /**
  * Re-validates active tracking sessions during client hydration or reload cycles.
@@ -225,12 +254,12 @@ export const updateProfilePicture = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export const checkAuth = catchAsync(async (req, res) => {
-        const user = await User.findById(req.userId).select("-password -__v");
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        res.status(200).json(user);
-});
+  const user = await User.findById(req.userId).select('-password -__v')
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' })
+  }
+  res.status(200).json(user)
+})
 
 /**
  * Registers Web Push subscription payloads to enable native system push features.
@@ -239,12 +268,12 @@ export const checkAuth = catchAsync(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 export const subscribeToPush = catchAsync(async (req, res) => {
-        const { subscription } = req.body;
-        
-        // HARDENING FIX: Explicitly strip credentials and metadata parameters from returning mutations
-        await User.findByIdAndUpdate(req.userId, { 
-            pushSubscription: subscription 
-        }).select("-password -__v");
-        
-        res.status(200).json({ message: "Push subscription saved" });
-});
+  const { subscription } = req.body
+
+  // HARDENING FIX: Explicitly strip credentials and metadata parameters from returning mutations
+  await User.findByIdAndUpdate(req.userId, {
+    pushSubscription: subscription,
+  }).select('-password -__v')
+
+  res.status(200).json({ message: 'Push subscription saved' })
+})

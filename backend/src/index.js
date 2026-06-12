@@ -89,7 +89,7 @@ app.use((req, res, next) => {
 // Rate Limiting Policy Declarations
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 100,
     message: { message: "Too many attempts, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,
@@ -120,7 +120,7 @@ app.use((err, req, res, next) => {
     console.error("Centralized Route Error Intercepted:", err.stack || err);
 
     const statusCode = err.status || err.statusCode || 500;
-    
+
     // Evaluate execution scope to mask internal error details from HTTP clients in production
     if (process.env.NODE_ENV === "production") {
         return res.status(statusCode).json({

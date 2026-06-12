@@ -172,6 +172,10 @@ NODE_ENV=development
 # ── Auth ──────────────────────────────────────────────
 JWT_SECRETKEY=your_super_secret_key
 GOOGLE_CLIENT_ID=your_google_client_id
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_secret
+CLIENT_URL=http://localhost:5001
+BACKEND_URL_URL=http://localhost:5173
 
 # ── Cloudinary ────────────────────────────────────────
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
@@ -189,6 +193,8 @@ Create a `.env` file inside the `frontend/` directory:
 ```env
 VITE_VAPID_PUBLIC_KEY=your_vapid_public_key
 VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_GITHUB_CLIENT_ID=your_github_client_id
+VITE_API_URL= http://localhost:5001/api
 ```
 
 > ⚠️ **Never** commit `.env` to version control. It is already listed in `.gitignore`.
