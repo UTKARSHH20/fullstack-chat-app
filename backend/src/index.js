@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression"; // <-- Clean & Simple Import
+import mongoSanitize from "express-mongo-sanitize"; // FIX #576: NoSQL injection protection
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -46,6 +47,14 @@ app.use(helmet({ contentSecurityPolicy: false }));
 // GSSoC Issue #35 Fix
 app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
+/**
+ * SECURITY MIDDLEWARE: NoSQL Injection Prevention (Fix #576)
+ * Strips MongoDB query operators ($where, $gt, $ne, etc.) from all incoming
+ * request bodies, query strings, and params — preventing attackers from
+ * injecting malicious operators like { "email": { "$gt": "" } }.
+ * replaceWith: '_' replaces dangerous keys with safe underscores.
+ */
+app.use(mongoSanitize({ replaceWith: "_" }));
 app.use(cookieParser()); // Must precede CSRF to parse incoming cookies
 
 /**
