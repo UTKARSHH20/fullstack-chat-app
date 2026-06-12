@@ -19,6 +19,9 @@ const messageSchema = new mongoose.Schema(
             }
         ],
         status: { type: String, enum: ["sent", "delivered", "seen"], default: "sent" },
+        // E2EE fields
+        iv: { type: String, default: null },
+        isEncrypted: { type: Boolean, default: false },
     },
     { timestamps: true }
 );
