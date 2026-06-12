@@ -11,6 +11,8 @@ import ProfilePage from "../pages/ProfilePage"
 import SavedMessagesPage from "../pages/SavedMessagesPage"
 import ScheduledMessagesPage from "../pages/ScheduledMessagesPage"
 import ConversationInsightsPage from "../pages/ConversationInsightsPage"
+import ForgotPasswordPage from "../pages/ForgotPasswordPage"
+import ResetPasswordPage from "../pages/ResetPasswordPage"
 import CallHandler from "../components/CallHandler"
 import useAuthStore from "./store/useAuthStore"
 import useCallStore from "./store/useCallStore"
@@ -48,6 +50,8 @@ const App = () => {
           <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
           <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
           <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+          <Route path="/forgot-password" element={!authUser ? <ForgotPasswordPage /> : <Navigate to="/" />} />
+          <Route path="/reset-password/:token" element={!authUser ? <ResetPasswordPage /> : <Navigate to="/" />} />
           <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
           <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
           <Route path="/saved" element={authUser ? <SavedMessagesPage /> : <Navigate to="/login" />} />

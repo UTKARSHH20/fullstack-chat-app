@@ -52,6 +52,17 @@ const userSchema = new mongoose.Schema({
         default: null,
         trim: true,
     },
+    // Password recovery (Feat #575)
+    passwordResetToken: {
+        type: String,
+        default: null,
+        select: false,    // Never returned in normal queries for security
+    },
+    passwordResetExpires: {
+        type: Date,
+        default: null,
+        select: false,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });

@@ -1,8 +1,10 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
 import { generateTokenAndSetCookie, catchAsync } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
+import { sendPasswordResetEmail } from "../lib/email.js";
 
 let googleClient;
 
@@ -247,4 +249,108 @@ export const subscribeToPush = catchAsync(async (req, res) => {
         }).select("-password -__v");
         
         res.status(200).json({ message: "Push subscription saved" });
+});
+
+// ── POST /auth/forgot-password ────────────────────────────────────
+/**
+ * Feat #575: Initiates the password recovery flow.
+ * Generates a cryptographically secure reset token, stores its SHA-256 hash
+ * in the database, and sends a one-time reset link to the user's email.
+ *
+ * Security notes:
+ *  - The raw token is sent via email ONLY; only the hash is stored in the DB.
+ *  - If no user is found for the email, we respond with 200 to prevent
+ *    user enumeration attacks.
+ *  - Token expires in 1 hour.
+ */
+export const forgotPassword = catchAsync(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email || typeof email !== "string") {
+        return res.status(400).json({ message: "Email address is required" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+    // Always respond 200 — prevents leaking whether an email exists in the system
+    if (!user) {
+        return res.status(200).json({ message: "If that email is registered, a reset link has been sent." });
+    }
+
+    // Generate a random 32-byte token (URL-safe hex string)
+    const rawToken = crypto.randomBytes(32).toString("hex");
+
+    // Store only the SHA-256 hash in DB (raw token is sent by email only)
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save({ validateBeforeSave: false });
+
+    try {
+        await sendPasswordResetEmail(user.email, rawToken, user.name);
+        res.status(200).json({ message: "If that email is registered, a reset link has been sent." });
+    } catch (emailErr) {
+        // Roll back the token on email failure so the user can retry
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
+        await user.save({ validateBeforeSave: false });
+        console.error("[forgotPassword] Failed to send email:", emailErr.message);
+        res.status(500).json({ message: "Failed to send reset email. Please try again later." });
+    }
+});
+
+// ── POST /auth/reset-password/:token ─────────────────────────────
+/**
+ * Feat #575: Completes the password reset flow.
+ * Validates the one-time token, hashes the new password, clears the token,
+ * and logs the user in with a fresh JWT session cookie.
+ *
+ * Security notes:
+ *  - Token is re-hashed on receipt and compared with the DB hash.
+ *  - Expired tokens are rejected even if they match.
+ *  - Token is consumed (nulled) after successful use to prevent replay attacks.
+ */
+export const resetPassword = catchAsync(async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!token || !password) {
+        return res.status(400).json({ message: "Token and new password are required" });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    // Re-hash the incoming raw token and look for a matching, non-expired record
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: new Date() },   // Token must not be expired
+    }).select("+passwordResetToken +passwordResetExpires");
+
+    if (!user) {
+        return res.status(400).json({ message: "Reset link is invalid or has expired. Please request a new one." });
+    }
+
+    // Hash the new password and persist
+    const salt = await bcrypt.genSalt(12);
+    user.password = await bcrypt.hash(password, salt);
+
+    // Consume the token — invalidates it for any future use
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    // Log the user in immediately by issuing a fresh JWT session cookie
+    generateTokenAndSetCookie(user._id, res);
+
+    const safeUser = user.toObject();
+    delete safeUser.password;
+    delete safeUser.passwordResetToken;
+    delete safeUser.passwordResetExpires;
+
+    res.status(200).json(safeUser);
 });
