@@ -27,6 +27,32 @@ import { getStatusMoodLabel } from "../../src/lib/statusMoods"
 
 const formatRecordingTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 
+/**
+ * Highlights occurrences of `query` inside `text` by wrapping them in <mark> spans.
+ * Used to visually emphasize matched text in search results (Fix #569).
+ * @param {string} text - The full message text
+ * @param {string} query - The search query string
+ * @returns {JSX.Element} - Span with highlighted matches
+ */
+const highlightText = (text, query) => {
+    if (!query.trim() || !text) return <span>{text}</span>;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+    return (
+        <span>
+            {parts.map((part, i) =>
+                part.toLowerCase() === query.toLowerCase() ? (
+                    <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5">
+                        {part}
+                    </mark>
+                ) : (
+                    <span key={i}>{part}</span>
+                )
+            )}
+        </span>
+    );
+};
+
 const formatLastSeen = (dateString) => {
     if (!dateString) return "Offline";
     const date = new Date(dateString);
@@ -119,6 +145,33 @@ export default function ChatWindow({ selectedUser, onBack, isMobileHidden }) {
 
     setRecentSearches(savedSearches);
 }, []);
+
+    /**
+     * FIX (#569): Keyboard shortcut to open the in-chat search bar.
+     * Ctrl+F (Windows/Linux) and Cmd+F (Mac) are intercepted when a chat
+     * is active, preventing the browser's native find dialog from opening
+     * and instead focusing the in-chat search field.
+     */
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "f" && selectedUser) {
+                e.preventDefault();
+                setSearchOpen(true);
+                // Short timeout to allow the search input to render before focusing
+                setTimeout(() => {
+                    const input = document.querySelector(".chat-search-input");
+                    if (input) input.focus();
+                }, 50);
+            }
+            if (e.key === "Escape" && searchOpen) {
+                setSearchOpen(false);
+                setSearchResults([]);
+                setSearchQuery("");
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedUser, searchOpen]);
 
     const scrollToMessage = (msgId) => {
         const msgElement = document.getElementById(`msg-${msgId}`);
@@ -558,9 +611,14 @@ const mediaMessages = messages.filter(
                     <button 
                         onClick={() => { setSearchOpen(!searchOpen); setSearchResults([]); setSearchQuery(""); }}
                         className={`btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-primary transition-colors ${searchOpen ? "text-primary bg-base-200" : ""}`}
-                        title="Search Messages"
+                        title="Search Messages (Ctrl+F)"
                     >
                         <Search className="w-5 h-5" />
+                        {searchResults.length > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-primary text-primary-content text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                                {searchResults.length > 9 ? "9+" : searchResults.length}
+                            </span>
+                        )}
                     </button>
                     <button 
                         onClick={() => startOutgoingCall(selectedUser._id, selectedUser.name, "audio")}
@@ -622,27 +680,41 @@ const mediaMessages = messages.filter(
                     <div className="flex items-center gap-2 px-4 py-2 bg-base-200 border-b border-base-300 shadow-inner">
                         <input
                             type="text"
-                            placeholder="Search messages in this chat..."
+                            placeholder="Search messages... (Esc to close)"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input input-sm input-bordered flex-1 focus:outline-none"
+                            className="input input-sm input-bordered flex-1 focus:outline-none chat-search-input"
                             autoFocus
                         />
+                        {searchQuery && (
+                            <span className="text-xs text-base-content/50 shrink-0">
+                                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+                            </span>
+                        )}
                         <button onClick={() => { setSearchOpen(false); setSearchResults([]); setSearchQuery(""); }} className="btn btn-sm btn-ghost btn-circle">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
                     {searchResults.length > 0 && (
-                        <div className="max-h-40 overflow-y-auto py-1.5 px-3 border-t border-base-300 space-y-1">
-                            <p className="text-xs text-base-content/40 mb-1">{searchResults.length} results found:</p>
+                        <div className="max-h-48 overflow-y-auto py-1.5 px-3 border-t border-base-300 space-y-1">
+                            <p className="text-xs text-base-content/40 mb-1">
+                                {searchResults.length} message{searchResults.length !== 1 ? "s" : ""} found — click to jump
+                            </p>
                             {searchResults.map((res) => (
                                 <button
                                     key={res._id}
                                     onClick={() => scrollToMessage(res._id)}
-                                    className="w-full text-left text-xs p-1.5 rounded hover:bg-base-200 block truncate"
+                                    className="w-full text-left text-xs p-2 rounded hover:bg-base-200 block"
                                 >
-                                    <span className="font-semibold text-primary">{res.senderId === authUser._id ? "You" : selectedUser.name}: </span>
-                                    <span>{res.message}</span>
+                                    <span className="font-semibold text-primary block mb-0.5">
+                                        {res.senderId === authUser._id ? "You" : selectedUser.name}
+                                        <span className="text-base-content/30 font-normal ml-1">
+                                            {new Date(res.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                    </span>
+                                    <span className="text-base-content/70 line-clamp-1">
+                                        {highlightText(res.message || "", searchQuery)}
+                                    </span>
                                 </button>
                             ))}
                         </div>
