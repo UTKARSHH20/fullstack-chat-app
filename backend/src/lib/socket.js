@@ -8,14 +8,13 @@ import User from "../models/user.model.js";
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",")
+    : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"];
+
 const io = new Server(server, {
     cors: {
-        // Allow any origin so the app works on phones/tablets on local network
-        // and in all dev environments. Lock this down to your domain in production.
-        origin: process.env.ALLOWED_ORIGINS
-            ? process.env.ALLOWED_ORIGINS.split(",")
-            : true,
-        credentials: true,
+        origin: allowedOrigins,
     },
 });
 
@@ -94,26 +93,30 @@ io.on("connection", (socket) => {
         return socket.disconnect(true);
     }
 
-    // Now safe to assume userId exists
-    if (!userSocketMap[userId]) userSocketMap[userId] = [];
-    userSocketMap[userId].push(socket.id);
-    
-    // Update lastSeen with a throttle mechanism to protect against connection churn
-    throttledUpdateLastSeen(userId);
+        if (!userSocketMap[userId]) userSocketMap[userId] = [];
+        userSocketMap[userId].push(socket.id);
+        
+        // Also update lastSeen to 'now' when they connect
+        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.error(err));
 
-    // Mark offline pending messages as delivered
-    Message.updateMany(
-        { receiverId: userId, status: "sent" },
-        { $set: { status: "delivered" } }
-    ).then(async (res) => {
-        if (res.modifiedCount > 0) {
-            const senders = await Message.distinct("senderId", { receiverId: userId, status: "delivered" });
+        // 1. Find only the senders who actually have pending "sent" messages right now
+Message.distinct("senderId", { receiverId: userId, status: "sent" })
+    .then(async (senders) => {
+        if (senders.length > 0) {
+            // 2. Update those pending messages to "delivered"
+            await Message.updateMany(
+                { receiverId: userId, status: "sent" },
+                { $set: { status: "delivered" } }
+            );
+
+            // 3. Notify ONLY the active senders whose status actually changed
             senders.forEach(senderIdStr => {
                 const senderSockets = getReceiverSocketIds(senderIdStr.toString());
                 senderSockets.forEach(s => io.to(s).emit("messagesDelivered", { receiverId: userId }));
             });
         }
-    }).catch(console.error);
+    }) .catch(console.error);
+    }
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
