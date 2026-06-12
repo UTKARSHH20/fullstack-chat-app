@@ -47,44 +47,44 @@ export const updateStatusMood = catchAsync(async (req, res) => {
 
 
 export const deleteProfile = catchAsync(async (req, res) => {
-   try {
-     const userId = req.userId;
-     const {password} = req.body;
+    const userId = req.userId;
+    const { password } = req.body;
 
-     const user = await User.findById(userId);
+    const user = await User.findById(userId);
 
-     const isMatch = await bcrypt.compare(password, user.password);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: "User not found",
+        });
+    }
 
-     if(!isMatch) {
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
         return res.status(400).json({
             success: false,
-            message: "Incorrect Password"
-        })
-     }
- 
-      // Delete all messages sent by user
-     await Message.deleteMany({
-         $or: [
-             {senderId: userId},
-             {receiverId: userId}
-         ]
-     })
-         // Delete user
-     await User.findByIdAndDelete(userId);
- 
-      // Clear JWT cookie
-     res.clearCookie("jwt");
- 
-     return res.status(200).json({
-         success: true,
-         message: "Account Deleted Successfully",
-     });
- 
-   } catch (error) {
-        console.error("Delete Account Error: ", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error"
-        })
-   }
-})
+            message: "Incorrect Password",
+        });
+    }
+
+    // Delete user's messages
+    await Message.deleteMany({
+        $or: [
+            { senderId: userId },
+            { receiverId: userId },
+        ],
+    });
+
+    // Delete user
+    await User.findByIdAndDelete(userId);
+
+    // Logout
+    res.clearCookie("jwt");
+    res.clearCookie("XSRF-TOKEN");
+
+    return res.status(200).json({
+        success: true,
+        message: "Account deleted successfully",
+    });
+});

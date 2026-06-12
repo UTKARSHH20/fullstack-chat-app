@@ -5,6 +5,6 @@ import { deleteProfile, updateStatusMood } from "../controllers/user.controller.
 const router = express.Router();
 
 router.patch("/status-mood", protectRoute, updateStatusMood);
-router.patch("/delete-account", protectRoute, deleteProfile);
+router.delete("/delete-account", protectRoute, deleteProfile);
 
 export default router;
