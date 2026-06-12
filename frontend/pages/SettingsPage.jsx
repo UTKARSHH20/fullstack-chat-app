@@ -9,6 +9,7 @@ import useSettingsStore from "../src/store/useSettingsStore"
 import useAuthStore from "../src/store/useAuthStore"
 import StatusMoodSelector from "../components/StatusMoodSelector"
 import toast from "react-hot-toast"
+import axios from "axios"
 
 const THEMES = [
     { id: "light",     label: "Light",     colors: ["#570df8","#f000b8","#00b5ff","#e5e6e6"] },
@@ -78,12 +79,16 @@ const ToggleRow = ({ label, description, checked, onChange, icon: Icon }) => (
     </label>
 )
 
+
+
 export default function SettingsPage() {
     const { theme, setTheme } = useThemeStore()
 
     const { notifications: notif, chat, privacy: priv, updateNotification, updateChat, updatePrivacy, resetAll } = useSettingsStore()
     const { authUser, updateStatusMood, isLoading } = useAuthStore()
     const [selectedMood, setSelectedMood] = useState(authUser?.statusMood || null)
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+const [deletePassword, setDeletePassword] = useState("");
 
     useEffect(() => {
         setSelectedMood(authUser?.statusMood || null)
@@ -98,6 +103,40 @@ export default function SettingsPage() {
             setSelectedMood(previousMood)
         }
     }
+
+const handleDeleteAccount = async () => {
+    try {
+        const csrfToken = document.cookie
+            .split("; ")
+            .find((row) => row.startsWith("XSRF-TOKEN="))
+            ?.split("=")[1];
+
+        const res = await axios.delete(
+            "http://localhost:5001/api/users/delete-account",
+            {
+                data: {
+                    password: deletePassword,
+                },
+                withCredentials: true,
+                headers: {
+                    "x-xsrf-token": csrfToken,
+                },
+            }
+        );
+
+        toast.success(res.data.message);
+
+        setShowDeleteModal(false);
+        setDeletePassword("");
+
+        window.location.href = "/login";
+    } catch (error) {
+        toast.error(
+            error.response?.data?.message ||
+            "Failed to delete account"
+        );
+    }
+};
 
     const upNotif = (k) => (v) => updateNotification(k, v)
     const upChat = (k) => (v) => updateChat(k, v)
@@ -372,6 +411,60 @@ export default function SettingsPage() {
                                 </div>
                                 <button className="btn btn-sm btn-outline btn-error" onClick={() => toast("Clear chat history is not yet available")}>Clear</button>
                             </div>
+                            <div className="flex items-center justify-between gap-4 p-3 rounded-xl bg-base-200">
+                                <div className="flex items-center gap-3">
+                                    <Trash2 className="w-4 h-4 text-base-content/40" />
+                                    <div>
+                                        <p className="text-sm font-medium">Delete Account</p>
+                                        <p className="text-xs text-base-content/40">  Permanently delete your account and all associated data</p>
+                                    </div>
+                                </div>
+                                <button className="btn btn-sm btn-outline btn-error" onClick={() => setShowDeleteModal(true)}>Delete Account</button>
+                            </div>
+
+                            {showDeleteModal && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-base-100 rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-xl font-bold text-error mb-2">
+                Delete Account
+            </h3>
+
+            <p className="text-sm text-base-content/70 mb-4">
+                This action cannot be undone.
+                All messages, profile data and account information
+                will be permanently deleted.
+            </p>
+
+            <input
+                type="password"
+                placeholder="Enter your password"
+                className="input input-bordered w-full"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-3 mt-6">
+                <button
+                    className="btn btn-outline"
+                    onClick={() => {
+                        setShowDeleteModal(false);
+                        setDeletePassword("");
+                    }}
+                >
+                    Cancel
+                </button>
+
+                <button
+                    className="btn btn-error"
+                    onClick={handleDeleteAccount}
+                >
+                    Delete Permanently
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+                            
                         </div>
                     </div>
 
