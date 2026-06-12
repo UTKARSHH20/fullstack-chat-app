@@ -14,6 +14,8 @@ import ConversationInsightsPage from "../pages/ConversationInsightsPage"
 import CallHandler from "../components/CallHandler"
 import useAuthStore from "./store/useAuthStore"
 import useCallStore from "./store/useCallStore"
+import { initE2EEKeys } from "../lib/crypto"
+import axiosInstance from "../lib/axios"
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore()
@@ -29,6 +31,21 @@ const App = () => {
       return () => unsubscribeFromCalls()
     }
   }, [authUser, subscribeToCalls, unsubscribeFromCalls])
+
+  useEffect(() => {
+    if (authUser) {
+      initE2EEKeys(authUser._id).then(async (pubKey) => {
+        if (pubKey && pubKey !== authUser.publicKey) {
+          try {
+            await axiosInstance.put("/auth/update-public-key", { publicKey: pubKey });
+            useAuthStore.setState({ authUser: { ...authUser, publicKey: pubKey } });
+          } catch (err) {
+            console.error("Failed to update public key on server", err);
+          }
+        }
+      });
+    }
+  }, [authUser]);
 
   if (isCheckingAuth) {
     return (

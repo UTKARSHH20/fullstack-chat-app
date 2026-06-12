@@ -164,6 +164,7 @@ export const getUsers = catchAsync(async (req, res) => {
             profilePicture: partner.profilePicture,
             lastSeen: partner.lastSeen,
             statusMood: partner.statusMood || null,
+            publicKey: partner.publicKey || null,
             lastMessage: {
                 _id: lastMessage._id,
                 message: lastMessage.message,
@@ -197,7 +198,7 @@ export const searchUsers = catchAsync(async (req, res) => {
             _id: { $ne: req.userId },
             name: { $regex: safeQuery, $options: "i" },
         })
-        .select("_id name email profilePicture lastSeen")
+        .select("_id name email profilePicture lastSeen publicKey")
         .limit(10);
         
         res.status(200).json(users);
@@ -301,13 +302,16 @@ export const sendMessage = catchAsync(async (req, res) => {
         if (senderId === receiverId) {
             return res.status(400).json({ message: "You cannot send messages to yourself" });
         }
-        const { message, image, audio, replyTo } = req.body;
+        const { message, image, audio, replyTo, iv, isEncrypted } = req.body;
 
         if (replyTo && !mongoose.Types.ObjectId.isValid(replyTo)) {
             return res.status(400).json({ message: "Invalid replyTo ID format" });
         }
 
-        let sanitizedMessage = message ? xss(message.trim()) : "";
+        let sanitizedMessage = message;
+        if (!isEncrypted) {
+            sanitizedMessage = message ? xss(message.trim()) : "";
+        }
 
         if (!sanitizedMessage && !image && !audio) {
             return res.status(400).json({ message: "Message content cannot be empty" });
@@ -353,6 +357,8 @@ export const sendMessage = catchAsync(async (req, res) => {
             audio: audioUrl,
             replyTo: replyTo || undefined,
             status,
+            iv: isEncrypted ? iv : null,
+            isEncrypted: !!isEncrypted,
         });
 
         if (receiverSocketIds.length > 0) {
