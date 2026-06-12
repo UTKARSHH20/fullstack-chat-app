@@ -96,9 +96,14 @@ export default function LoginPage() {
                         </div>
 
                         <div className="form-control">
-                            <label className="label" htmlFor="login-password">
-                                <span className="label-text font-medium">Password</span>
-                            </label>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="label py-0" htmlFor="login-password">
+                                    <span className="label-text font-medium">Password</span>
+                                </label>
+                                <Link to="/forgot-password" className="text-xs link link-primary hover:underline">
+                                    Forgot password?
+                                </Link>
+                            </div>
                             <label className="input input-bordered flex items-center gap-2 w-full">
                                 <Lock className="h-4 w-4 text-base-content/40 shrink-0" />
                                 <input

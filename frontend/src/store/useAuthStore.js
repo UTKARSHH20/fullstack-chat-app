@@ -160,6 +160,34 @@ const useAuthStore = create((set) => ({
             set({ isLoading: false });
         }
     },
+
+    forgotPassword: async (email) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.post("/auth/forgot-password", { email });
+            toast.success(res.data.message || "Password reset link sent to your email!");
+            return res.data;
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to send reset email");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
+    resetPassword: async (token, password) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.post(`/auth/reset-password/${token}`, { password });
+            toast.success(res.data.message || "Password reset successfully!");
+            return res.data;
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to reset password");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
 }));
 
 export default useAuthStore;
