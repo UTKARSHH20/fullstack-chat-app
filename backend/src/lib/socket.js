@@ -39,6 +39,21 @@ io.use((socket, next) => {
 
 const userSocketMap = {};
 
+// Cache to throttle user lastSeen database updates (max once per minute per user)
+const lastDbUpdateCache = new Map();
+
+const throttledUpdateLastSeen = async (userId) => {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId);
+    if (lastUpdate && now - lastUpdate < 60000) return;
+    lastDbUpdateCache.set(userId, now);
+    try {
+        await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+    } catch (err) {
+        console.error("Failed to update user lastSeen:", err);
+    }
+};
+
 export const getReceiverSocketIds = (userId) => 
     userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
@@ -48,8 +63,6 @@ export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
 
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
- * Adjust the database query inside based on whether you track relationships via 
- * a Friends/Block schema or directly within the User model.
  */
 const canCommunicate = async (senderId, receiverId) => {
     if (!senderId || !receiverId || senderId === receiverId) return false;
@@ -58,7 +71,6 @@ const canCommunicate = async (senderId, receiverId) => {
         const receiver = await User.findById(receiverId);
         if (!receiver) return false;
 
-        // Example: If your User schema has a 'blockedUsers' array
         if (receiver.blockedUsers && receiver.blockedUsers.includes(senderId)) {
             return false;
         }
@@ -69,21 +81,6 @@ const canCommunicate = async (senderId, receiverId) => {
         return false;
     }
 };
-
-io.on("connection", (socket) => {
-const getActiveContacts = async (userId) => {
-    try {
-        const [senders, receivers] = await Promise.all([
-            Message.distinct("senderId", { receiverId: userId }),
-            Message.distinct("receiverId", { senderId: userId })
-        ]);
-        const merged = [...senders, ...receivers].map(id => id.toString());
-        return [...new Set(merged)];
-    } catch (err) {
-        console.error("Error fetching active contacts:", err);
-        return [];
-    }
-}
 
 io.on("connection", (socket) => {
     const userId = socket.userId;
@@ -187,6 +184,6 @@ io.on("connection", (socket) => {
         
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
-}); 
+});
 
 export { io, app, server };

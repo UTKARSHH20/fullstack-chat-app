@@ -209,6 +209,13 @@ export default function CallHandler() {
             }
         };
 
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+                toast.error("Call connection lost");
+                endCall();
+            }
+        };
+
         setPeer(pc);
         return pc;
     };
