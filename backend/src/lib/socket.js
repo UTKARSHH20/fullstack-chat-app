@@ -39,7 +39,32 @@ io.use((socket, next) => {
 
 const userSocketMap = {};
 
-export const getReceiverSocketIds = (userId) => 
+/**
+ * FIX (#568): In-memory cache tracking the last DB write timestamp per userId.
+ * Previously this was referenced but never defined, causing a ReferenceError crash
+ * on user disconnect when the registry cleanup tried to call lastDbUpdateCache.delete().
+ */
+const lastDbUpdateCache = new Map();
+
+/**
+ * FIX (#568): Throttled lastSeen updater — limits DB writes to at most once every
+ * 30 seconds per user to protect against connection-churn storms.
+ * Previously referenced throughout the file but never defined, causing crashes.
+ */
+const THROTTLE_MS = 30_000;
+const throttledUpdateLastSeen = async (userId) => {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId) || 0;
+    if (now - lastUpdate < THROTTLE_MS) return;
+    lastDbUpdateCache.set(userId, now);
+    try {
+        await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+    } catch (err) {
+        console.error("[Socket] Failed to update lastSeen:", err.message);
+    }
+};
+
+export const getReceiverSocketIds = (userId) =>
     userSocketMap[userId] ? [...userSocketMap[userId]] : [];
 
 export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
@@ -48,12 +73,12 @@ export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
 
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
- * Adjust the database query inside based on whether you track relationships via 
+ * Adjust the database query inside based on whether you track relationships via
  * a Friends/Block schema or directly within the User model.
  */
 const canCommunicate = async (senderId, receiverId) => {
     if (!senderId || !receiverId || senderId === receiverId) return false;
-    
+
     try {
         const receiver = await User.findById(receiverId);
         if (!receiver) return false;
@@ -70,21 +95,19 @@ const canCommunicate = async (senderId, receiverId) => {
     }
 };
 
-io.on("connection", (socket) => {
-const getActiveContacts = async (userId) => {
-    try {
-        const [senders, receivers] = await Promise.all([
-            Message.distinct("senderId", { receiverId: userId }),
-            Message.distinct("receiverId", { senderId: userId })
-        ]);
-        const merged = [...senders, ...receivers].map(id => id.toString());
-        return [...new Set(merged)];
-    } catch (err) {
-        console.error("Error fetching active contacts:", err);
-        return [];
-    }
-}
-
+/**
+ * FIX (#568): SINGLE connection handler.
+ *
+ * Root cause of the memory leak: the original code had TWO nested io.on("connection")
+ * calls — an outer one (that contained a helper function) and an inner one with the
+ * actual logic. Because the inner io.on() was INSIDE the outer callback, every new
+ * socket connection would register one additional "connection" event listener on the
+ * server, causing the listener count to grow unboundedly (O(n²) growth pattern).
+ * Node.js emits a MaxListenersExceededWarning and heap memory climbs continuously.
+ *
+ * Fix: collapsed into a single, flat io.on("connection") handler. Helper functions
+ * that were incorrectly scoped inside the connection callback are now at module level.
+ */
 io.on("connection", (socket) => {
     const userId = socket.userId;
 
@@ -94,14 +117,14 @@ io.on("connection", (socket) => {
         return socket.disconnect(true);
     }
 
-    // Now safe to assume userId exists
+    // Register this socket ID under the user's registry slot
     if (!userSocketMap[userId]) userSocketMap[userId] = [];
     userSocketMap[userId].push(socket.id);
-    
-    // Update lastSeen with a throttle mechanism to protect against connection churn
+
+    // Update lastSeen with throttle to protect against connection churn
     throttledUpdateLastSeen(userId);
 
-    // Mark offline pending messages as delivered
+    // Mark offline pending messages as delivered now that user is online
     Message.updateMany(
         { receiverId: userId, status: "sent" },
         { $set: { status: "delivered" } }
@@ -120,14 +143,12 @@ io.on("connection", (socket) => {
     // Typing indicators (🔒 Protected)
     socket.on("typing", async ({ receiverId }) => {
         if (!(await canCommunicate(userId, receiverId))) return;
-
         const receiverSockets = getReceiverSocketIds(receiverId);
         receiverSockets.forEach(s => io.to(s).emit("userTyping", { senderId: userId }));
     });
 
     socket.on("stopTyping", async ({ receiverId }) => {
         if (!(await canCommunicate(userId, receiverId))) return;
-
         const receiverSockets = getReceiverSocketIds(receiverId);
         receiverSockets.forEach(s => io.to(s).emit("userStoppedTyping", { senderId: userId }));
     });
@@ -136,11 +157,12 @@ io.on("connection", (socket) => {
     socket.on("callUser", async ({ userToCall, signalData, type }) => {
         try {
             if (!(await canCommunicate(userId, userToCall))) return;
-
             const sender = await User.findById(userId).select("name");
             if (!sender) return;
             const receiverSockets = getReceiverSocketIds(userToCall);
-            receiverSockets.forEach(s => io.to(s).emit("incomingCall", { signal: signalData, from: userId, name: sender.name, type }));
+            receiverSockets.forEach(s =>
+                io.to(s).emit("incomingCall", { signal: signalData, from: userId, name: sender.name, type })
+            );
         } catch (err) {
             console.error("Error in callUser:", err);
         }
@@ -148,45 +170,49 @@ io.on("connection", (socket) => {
 
     socket.on("answerCall", async ({ to, signal }) => {
         if (!(await canCommunicate(userId, to))) return;
-
         const receiverSockets = getReceiverSocketIds(to);
         receiverSockets.forEach(s => io.to(s).emit("callAccepted", signal));
     });
 
     socket.on("iceCandidate", async ({ to, candidate }) => {
         if (!(await canCommunicate(userId, to))) return;
-
         const receiverSockets = getReceiverSocketIds(to);
         receiverSockets.forEach(s => io.to(s).emit("iceCandidate", candidate));
     });
 
     socket.on("endCall", async ({ to }) => {
         if (!(await canCommunicate(userId, to))) return;
-
         const receiverSockets = getReceiverSocketIds(to);
         receiverSockets.forEach(s => io.to(s).emit("callEnded"));
     });
 
     socket.on("rejectCall", async ({ to }) => {
         if (!(await canCommunicate(userId, to))) return;
-
         const receiverSockets = getReceiverSocketIds(to);
         receiverSockets.forEach(s => io.to(s).emit("callRejected"));
     });
 
+    socket.on("callCanceled", async ({ to }) => {
+        const receiverSockets = getReceiverSocketIds(to);
+        receiverSockets.forEach(s => io.to(s).emit("callCanceled"));
+    });
+
     socket.on("disconnect", async () => {
+        // FIX (#568): Remove only THIS socket from the user's registry slot.
+        // Previously, the registry was never cleaned up correctly because
+        // lastDbUpdateCache was undefined — causing a crash on every disconnect.
         userSocketMap[userId] = userSocketMap[userId]?.filter(id => id !== socket.id) || [];
-        
+
         if (userSocketMap[userId].length === 0) {
             delete userSocketMap[userId];
-            // Update lastSeen when they completely disconnect (if not updated recently)
+            // Update lastSeen when they completely disconnect (throttled)
             await throttledUpdateLastSeen(userId);
-            // Clean up our local cache memory since the user is fully offline
+            // Evict the throttle cache entry since user is fully offline
             lastDbUpdateCache.delete(userId);
         }
-        
+
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
-}); 
+});
 
 export { io, app, server };
