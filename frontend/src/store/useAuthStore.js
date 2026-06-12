@@ -2,6 +2,7 @@ import { create } from "zustand";
 import axiosInstance from "../../lib/axios";
 import toast from "react-hot-toast";
 import { connectSocket, disconnectSocket } from "../../lib/socket";
+import { compressImageToBase64, validateImageFile } from "../../lib/imageUtils";
 
 const urlBase64ToUint8Array = (base64String) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -131,14 +132,42 @@ const useAuthStore = create((set) => ({
         }
     },
 
-    updateProfilePicture: async (base64Image) => {
+    /**
+     * FIX (#573): Compresses the selected image client-side before uploading.
+     * Previously, the raw uncompressed base64 string (up to 15 MB) was sent
+     * directly to the server and then to Cloudinary — wasting bandwidth and
+     * storage. Now the image is compressed to ≤1 MB / 1024px before upload.
+     *
+     * @param {File} imageFile - The raw File object from the file input
+     */
+    updateProfilePicture: async (imageFile) => {
         set({ isLoading: true });
         try {
-            const res = await axiosInstance.put("/auth/update-profile-picture", { profilePicture: base64Image });
+            // Validate file type and size before compression
+            const validation = validateImageFile(imageFile, 10);
+            if (!validation.valid) {
+                toast.error(validation.error);
+                return;
+            }
+
+            toast.loading("Compressing image...", { id: "pic-upload" });
+
+            // Compress client-side to ≤1 MB / 1024px (avatar quality)
+            const compressedBase64 = await compressImageToBase64(imageFile, {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1024,
+                fileType: "image/webp",
+            });
+
+            toast.loading("Uploading...", { id: "pic-upload" });
+
+            const res = await axiosInstance.put("/auth/update-profile-picture", {
+                profilePicture: compressedBase64,
+            });
             set({ authUser: res.data });
-            toast.success("Profile picture updated!");
+            toast.success("Profile picture updated!", { id: "pic-upload" });
         } catch (error) {
-            toast.error(error.response?.data?.message || "Picture update failed");
+            toast.error(error.response?.data?.message || "Picture update failed", { id: "pic-upload" });
             throw error;
         } finally {
             set({ isLoading: false });
