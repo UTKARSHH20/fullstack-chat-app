@@ -26,6 +26,9 @@ async function processScheduledMessage(scheduledMsg) {
                 const validation = validateImageAttachment(scheduledMsg.image);
                 if (!validation.isValid) {
                     console.error(`[Scheduler] Image validation failed for scheduled message ${scheduledMsg._id}:`, validation.error);
+                    scheduledMsg.status = "failed";
+                    scheduledMsg.failureReason = validation.error;
+                    await scheduledMsg.save();
                     return; // Skip processing this message
                 }
                 const uploadResult = await cloudinary.uploader.upload(scheduledMsg.image);
@@ -42,6 +45,9 @@ async function processScheduledMessage(scheduledMsg) {
                 const validation = validateAudioAttachment(scheduledMsg.audio);
                 if (!validation.isValid) {
                     console.error(`[Scheduler] Audio validation failed for scheduled message ${scheduledMsg._id}:`, validation.error);
+                    scheduledMsg.status = "failed";
+                    scheduledMsg.failureReason = validation.error;
+                    await scheduledMsg.save();
                     return; // Skip processing this message
                 }
                 const uploadResult = await cloudinary.uploader.upload(scheduledMsg.audio, { resource_type: "auto" });
@@ -84,7 +90,7 @@ async function processScheduledMessage(scheduledMsg) {
             // For now, this is a placeholder for push notification logic
             const notificationPayload = {
                 title: "New message",
-                body: scheduledMsg.message || "(Message with attachment)",
+                body: sanitizedMessage || "(Message with attachment)",
                 icon: "/icon.png",
             };
 

@@ -188,9 +188,34 @@ export async function updateScheduledMessage(req, res) {
         }
 
         // Update fields if provided
-        if (message !== undefined) scheduledMessage.message = message;
-        if (image !== undefined) scheduledMessage.image = image;
-        if (audio !== undefined) scheduledMessage.audio = audio;
+        if (message !== undefined) scheduledMessage.message = message ? xss(message.trim()) : "";
+
+        if (image !== undefined) {
+            if (image) {
+                const validation = validateImageAttachment(image);
+                if (!validation.isValid) {
+                    return res.status(400).json({ message: validation.error });
+                }
+                const result = await cloudinary.uploader.upload(image);
+                scheduledMessage.image = result.secure_url;
+            } else {
+                scheduledMessage.image = "";
+            }
+        }
+
+        if (audio !== undefined) {
+            if (audio) {
+                const validation = validateAudioAttachment(audio);
+                if (!validation.isValid) {
+                    return res.status(400).json({ message: validation.error });
+                }
+                const result = await cloudinary.uploader.upload(audio, { resource_type: "auto" });
+                scheduledMessage.audio = result.secure_url;
+            } else {
+                scheduledMessage.audio = "";
+            }
+        }
+
         if (replyTo !== undefined) scheduledMessage.replyTo = replyTo;
 
         if (scheduledFor) {

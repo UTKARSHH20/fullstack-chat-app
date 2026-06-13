@@ -6,6 +6,7 @@
  */
 
 export const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 1024) => {
+    if (typeof base64Str !== 'string' || !base64Str) return { isValid: false, error: "Invalid file format structure or corrupt payload." };
     // Verify Data URL format
     const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) {
@@ -26,6 +27,7 @@ export const validateImageAttachment = (base64Str, maxSizeBytes = 5 * 1024 * 102
 };
 
 export const validateAudioAttachment = (base64Str, maxSizeBytes = 10 * 1024 * 1024) => {
+    if (typeof base64Str !== 'string' || !base64Str) return { isValid: false, error: "Invalid audio format structure or corrupt payload." };
     const match = base64Str.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) {
         return { isValid: false, error: "Invalid audio format structure or corrupt payload." };
