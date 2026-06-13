@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import ScheduledMessage from "../models/scheduledMessage.model.js";
 import User from "../models/user.model.js";
+import xss from "xss";
+import cloudinary from "../lib/cloudinary.js";
+import { validateImageAttachment, validateAudioAttachment } from "../lib/attachmentValidator.js";
 
 // ── POST /messages/schedule ──────────────────────────────────────
 /**
@@ -13,47 +16,63 @@ export async function scheduleMessage(req, res) {
         const { receiverId, message, image, audio, scheduledFor, replyTo } = req.body;
         const senderId = req.userId;
 
-        // Validation
+        // Validation of receiver
         if (!receiverId || !mongoose.Types.ObjectId.isValid(receiverId)) {
             return res.status(400).json({ message: "Valid receiver ID is required." });
         }
-
+        // Validate scheduled time
         if (!scheduledFor) {
             return res.status(400).json({ message: "Scheduled timestamp is required." });
         }
-
         const scheduledDate = new Date(scheduledFor);
         const now = new Date();
-
         if (scheduledDate <= now) {
             return res.status(400).json({ message: "Scheduled time must be in the future." });
         }
-
+        // At least one content
         if (!message && !image && !audio) {
             return res.status(400).json({ message: "Message, image, or audio is required." });
         }
-
         // Check receiver exists
         const receiver = await User.findById(receiverId);
         if (!receiver) {
             return res.status(404).json({ message: "Receiver user not found." });
         }
-
+        // Sanitize message text if present
+        const sanitizedMessage = message ? xss(message.trim()) : "";
+        // Validate and upload image
+        let imageUrl = "";
+        if (image) {
+            const validation = validateImageAttachment(image);
+            if (!validation.isValid) {
+                return res.status(400).json({ message: validation.error });
+            }
+            const result = await cloudinary.uploader.upload(image);
+            imageUrl = result.secure_url;
+        }
+        // Validate and upload audio
+        let audioUrl = "";
+        if (audio) {
+            const validation = validateAudioAttachment(audio);
+            if (!validation.isValid) {
+                return res.status(400).json({ message: validation.error });
+            }
+            const result = await cloudinary.uploader.upload(audio, { resource_type: "auto" });
+            audioUrl = result.secure_url;
+        }
         // Create scheduled message
         const scheduledMessage = new ScheduledMessage({
             senderId,
             receiverId,
-            message: message || "",
-            image: image || "",
-            audio: audio || "",
+            message: sanitizedMessage,
+            image: imageUrl,
+            audio: audioUrl,
             scheduledFor: scheduledDate,
             replyTo: replyTo || null,
             status: "pending",
         });
-
         await scheduledMessage.save();
         await scheduledMessage.populate("senderId receiverId", "name profilePicture");
-
         res.status(201).json({
             message: "Message scheduled successfully.",
             data: scheduledMessage,
