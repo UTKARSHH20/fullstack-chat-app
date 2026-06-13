@@ -2,9 +2,6 @@ import ScheduledMessage from "../models/scheduledMessage.model.js";
 import Message from "../models/message.model.js";
 import { io, getReceiverSocketIds } from "./socket.js";
 import webpush from "./webpush.js";
-import xss from "xss";
-import cloudinary from "./cloudinary.js";
-import { validateImageAttachment, validateAudioAttachment } from "./attachmentValidator.js";
 
 let schedulerInterval = null;
 
@@ -16,48 +13,13 @@ const SCHEDULER_INTERVAL = 30000; // Check every 30 seconds
  */
 async function processScheduledMessage(scheduledMsg) {
     try {
-        // Sanitize message text
-        const sanitizedMessage = scheduledMsg.message ? xss(scheduledMsg.message.trim()) : "";
-
-        // Handle image attachment
-        let imageUrl = "";
-        if (scheduledMsg.image) {
-            if (scheduledMsg.image.startsWith('data:')) {
-                const validation = validateImageAttachment(scheduledMsg.image);
-                if (!validation.isValid) {
-                    console.error(`[Scheduler] Image validation failed for scheduled message ${scheduledMsg._id}:`, validation.error);
-                    return; // Skip processing this message
-                }
-                const uploadResult = await cloudinary.uploader.upload(scheduledMsg.image);
-                imageUrl = uploadResult.secure_url;
-            } else {
-                imageUrl = scheduledMsg.image; // Assume already a URL
-            }
-        }
-
-        // Handle audio attachment
-        let audioUrl = "";
-        if (scheduledMsg.audio) {
-            if (scheduledMsg.audio.startsWith('data:')) {
-                const validation = validateAudioAttachment(scheduledMsg.audio);
-                if (!validation.isValid) {
-                    console.error(`[Scheduler] Audio validation failed for scheduled message ${scheduledMsg._id}:`, validation.error);
-                    return; // Skip processing this message
-                }
-                const uploadResult = await cloudinary.uploader.upload(scheduledMsg.audio, { resource_type: "auto" });
-                audioUrl = uploadResult.secure_url;
-            } else {
-                audioUrl = scheduledMsg.audio; // Assume already a URL
-            }
-        }
-
         // Create the actual message
         const newMessage = new Message({
             senderId: scheduledMsg.senderId,
             receiverId: scheduledMsg.receiverId,
-            message: sanitizedMessage,
-            image: imageUrl,
-            audio: audioUrl,
+            message: scheduledMsg.message,
+            image: scheduledMsg.image,
+            audio: scheduledMsg.audio,
             replyTo: scheduledMsg.replyTo,
             status: "sent",
         });
