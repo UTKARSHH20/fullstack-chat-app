@@ -8,7 +8,8 @@ const scheduledMessageSchema = new mongoose.Schema(
         image: { type: String, default: "" },
         audio: { type: String, default: "" },
         scheduledFor: { type: Date, required: true },
-        status: { type: String, enum: ["pending", "sent", "cancelled"], default: "pending" },
+        status: { type: String, enum: ["pending", "sent", "cancelled", "failed"], default: "pending" },
+        failureReason: { type: String, default: null },
         sentAt: { type: Date, default: null },
         cancelledAt: { type: Date, default: null },
         replyTo: {
