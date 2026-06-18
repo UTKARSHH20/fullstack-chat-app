@@ -10,20 +10,9 @@ export default function SignUpPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [formData, setFormData] = useState({name: "",email: "",password: "",confirmPassword: ""})
 
-    const passwordStrength = [
-        formData.password.length >= 8,
-        /[A-Z]/.test(formData.password),
-        /[a-z]/.test(formData.password),
-        /\d/.test(formData.password),
-        /[@#$!%&*]/.test(formData.password),
-    ].filter(Boolean).length
-
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-
-        const passwordRegex =
-            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$!%&*])[A-Za-z\d@#$!%&*]{8,}$/
 
         if (formData.password !== formData.confirmPassword) {
             toast.error("Passwords do not match")
@@ -97,7 +86,7 @@ export default function SignUpPage() {
                 </div>
             </div>
 
-            <div className="flex flex-col items-center p-8 sm:p-12 bg-base-100 h-screen overflow-y-auto">
+            <div className="flex flex-col justify-center items-center p-8 sm:p-12 bg-base-100 min-h-screen">
                 <div className="w-full max-w-md space-y-8 py-8">
                     <div className="text-center mb-8">
                         <div className="flex flex-col items-center gap-3 group">
