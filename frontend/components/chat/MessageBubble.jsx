@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Pin, Languages} from "lucide-react"
+import { Check, CheckCheck, Pin } from "lucide-react"
 import Avatar from "./Avatar"
 import { useState } from "react"
 import ReplyPreview from "./ReplyPreview"
@@ -9,25 +9,7 @@ const formatTime = (d) =>
 // Single message bubble with avatar, media, reactions, and read receipts
 export default function MessageBubble({ msg, isMine, showTime, selectedUser, isOnline, authUser, onContextMenu, onTouchStart, onTouchEnd, onReact }) {
 
-    const [showTranslation, setShowTranslation] = useState(false)
     const [isSelected, setIsSelected] = useState(false)
-
-    const getTranslatedText = (text) => {
-    const translations = {
-        hello: "hola",
-        thanks: "gracias",
-        yes: "sí",
-        no: "no",
-        good: "bueno",
-        welcome: "bienvenido",
-        friend: "amigo"
-    }
-
-    return text
-        .split(" ")
-        .map(word => translations[word.toLowerCase()] || word)
-        .join(" ")
-}
 
     return (
         <div key={msg._id} id={`msg-${msg._id}`}>
@@ -113,20 +95,8 @@ export default function MessageBubble({ msg, isMine, showTime, selectedUser, isO
 {msg.message && (
     <div>
         <p className="text-sm">
-            {showTranslation
-                ? getTranslatedText(String(msg.message))
-                : String(msg.message)}
+            {String(msg.message)}
         </p>
-
-        <button 
-            onClick={(e) => { e.stopPropagation(); setShowTranslation(!showTranslation); }}
-            className={`text-xs px-1.5 py-0.5 rounded-full shadow-sm hover:scale-110 hover:shadow-md transition-all ${isMine ? "bg-primary-focus text-primary-content border border-white/20" : "bg-base-100 text-base-content border border-base-300"}`}
-        >
-            <Languages className="w-3 h-3" />
-            {showTranslation
-                ? "Show Original"
-                : "Translate"}
-        </button>
 
         {msg.edited && (
             <span className="text-[10px] italic opacity-70">
