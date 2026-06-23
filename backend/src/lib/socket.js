@@ -46,6 +46,24 @@ export const broadcastStatusMoodUpdate = ({ userId, statusMood }) => {
     io.emit("statusMoodUpdated", { userId, statusMood });
 };
 
+// Keep track of the last time MongoDB was updated for a user to avoid connection churn overhead
+const lastDbUpdateCache = new Map();
+const THROTTLE_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+async function throttledUpdateLastSeen(userId) {
+    const now = Date.now();
+    const lastUpdate = lastDbUpdateCache.get(userId);
+
+    if (!lastUpdate || (now - lastUpdate > THROTTLE_TIME)) {
+        lastDbUpdateCache.set(userId, now);
+        try {
+            await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+        } catch (err) {
+            console.error(`[DB Error] Failed to update lastSeen for ${userId}:`, err);
+        }
+    }
+}
+
 /**
  * 🛠️ Security Helper: Validates if two users can communicate.
  * Adjust the database query inside based on whether you track relationships via 
@@ -70,7 +88,6 @@ const canCommunicate = async (senderId, receiverId) => {
     }
 };
 
-io.on("connection", (socket) => {
 const getActiveContacts = async (userId) => {
     try {
         const [senders, receivers] = await Promise.all([
