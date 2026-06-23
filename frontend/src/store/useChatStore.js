@@ -4,6 +4,9 @@ import axiosInstance from "../../lib/axios";
 import { getSocket } from "../../lib/socket";
 import useAuthStore from "./useAuthStore";
 
+// MEMORY LOCK QUEUE: Prevents async race conditions on rapid emoji clicks
+const reactionQueues = {};
+
 const useChatStore = create((set, get) => ({
     users: [],
     selectedUser: null,
@@ -136,16 +139,34 @@ const useChatStore = create((set, get) => ({
         }
     },
 
+    // ATOMIC ACTION: Safely locks the thread per-message so rapid clicks process sequentially.
     addReaction: async (messageId, emoji) => {
-        try {
-            const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
-            set((state) => ({
-                messages: state.messages.map((msg) =>
-                    msg._id === messageId ? { ...msg, reactions: res.data } : msg
-                ),
-            }));
-        } catch {
-            toast.error("Failed to add reaction");
+        if (!reactionQueues[messageId]) {
+            reactionQueues[messageId] = [];
+        }
+
+        const executeReactionTask = async () => {
+            try {
+                const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+                set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg._id === messageId ? { ...msg, reactions: res.data } : msg
+                    ),
+                }));
+            } catch {
+                toast.error("Failed to add reaction");
+            }
+        };
+
+        reactionQueues[messageId].push(executeReactionTask);
+
+        if (reactionQueues[messageId].length === 1) {
+            while (reactionQueues[messageId].length > 0) {
+                const currentTask = reactionQueues[messageId][0];
+                await currentTask(); 
+                reactionQueues[messageId].shift(); 
+            }
+            delete reactionQueues[messageId];
         }
     },
 
@@ -286,6 +307,21 @@ const useChatStore = create((set, get) => ({
                 ),
             }));
         });
+
+        socket.on("statusMoodUpdated", ({ userId, statusMood }) => {
+            const authUser = useAuthStore.getState().authUser;
+            if (authUser?._id === userId) {
+                useAuthStore.setState({ authUser: { ...authUser, statusMood } });
+            }
+            set((state) => ({
+                users: state.users.map((user) =>
+                    user._id === userId ? { ...user, statusMood } : user
+                ),
+                selectedUser: state.selectedUser?._id === userId
+                    ? { ...state.selectedUser, statusMood }
+                    : state.selectedUser,
+            }));
+        });
     },
 
     unsubscribeFromMessages: () => {
@@ -298,6 +334,16 @@ const useChatStore = create((set, get) => ({
             socket.off("messagesSeen");
             socket.off("messagesDelivered");
             socket.off("messageReacted");
+        }
+    },
+
+    searchTextMessages: async (userId, query) => {
+        try {
+            const res = await axiosInstance.get(`/messages/search-text/${userId}?q=${encodeURIComponent(query)}`);
+            return res.data;
+        } catch {
+            toast.error("Text search failed");
+            return [];
         }
     },
 

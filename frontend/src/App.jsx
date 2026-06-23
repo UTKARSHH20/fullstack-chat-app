@@ -7,6 +7,9 @@ import SignUpPage from "../pages/SignUpPage"
 import ChatPage from "../pages/ChatPage"
 import SettingsPage from "../pages/SettingsPage"
 import ProfilePage from "../pages/ProfilePage"
+import SavedMessagesPage from "../pages/SavedMessagesPage"
+import ScheduledMessagesPage from "../pages/ScheduledMessagesPage"
+import ConversationInsightsPage from "../pages/ConversationInsightsPage"
 import CallHandler from "../components/CallHandler"
 import useAuthStore from "./store/useAuthStore"
 import useCallStore from "./store/useCallStore"
@@ -22,10 +25,8 @@ const App = () => {
   useEffect(() => {
     if (authUser) {
       subscribeToCalls()
-    } else {
-      unsubscribeFromCalls()
+      return () => unsubscribeFromCalls()
     }
-    return () => unsubscribeFromCalls()
   }, [authUser, subscribeToCalls, unsubscribeFromCalls])
 
   if (isCheckingAuth) {
@@ -37,7 +38,7 @@ const App = () => {
   }
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <Toaster position="top-center" />
       <CallHandler />
       <Navbar />
@@ -48,6 +49,9 @@ const App = () => {
           <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
           <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
           <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
+          <Route path="/saved" element={authUser ? <SavedMessagesPage /> : <Navigate to="/login" />} />
+          <Route path="/scheduled" element={authUser ? <ScheduledMessagesPage /> : <Navigate to="/login" />} />
+          <Route path="/insights" element={authUser ? <ConversationInsightsPage /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

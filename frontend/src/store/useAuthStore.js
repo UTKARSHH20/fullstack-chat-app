@@ -23,11 +23,14 @@ const requestNotificationPermission = async () => {
         if (perm === "granted") {
             try {
                 const registration = await navigator.serviceWorker.register("/service-worker.js");
-                const subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY)
-                });
-                await axiosInstance.post("/auth/push-subscribe", { subscription });
+                const existingSub = await registration.pushManager.getSubscription();
+                if (!existingSub) {
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+                    });
+                    await axiosInstance.post("/auth/push-subscribe", { subscription });
+                }
             } catch (err) {
                 console.log("Push subscription failed", err);
             }
@@ -46,7 +49,7 @@ const useAuthStore = create((set) => ({
         try {
             const res = await axiosInstance.post("/auth/signup", formData);
             set({ authUser: res.data });
-            connectSocket(res.data._id);
+            connectSocket();
             requestNotificationPermission();
             toast.success("Account created successfully!");
         } catch (error) {
@@ -62,7 +65,7 @@ const useAuthStore = create((set) => ({
         try {
             const res = await axiosInstance.post("/auth/login", formData);
             set({ authUser: res.data });
-            connectSocket(res.data._id);
+            connectSocket();
             requestNotificationPermission();
             toast.success("Logged in successfully!");
         } catch (error) {
@@ -89,7 +92,7 @@ const useAuthStore = create((set) => ({
         try {
             const res = await axiosInstance.get("/auth/check");
             set({ authUser: res.data });
-            connectSocket(res.data._id);
+            connectSocket();
             requestNotificationPermission();
         } catch {
             set({ authUser: null });
@@ -108,6 +111,20 @@ const useAuthStore = create((set) => ({
             toast.success("Profile updated successfully!");
         } catch (error) {
             toast.error(error.response?.data?.message || "Update failed");
+            throw error;
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
+    updateStatusMood: async (statusMood) => {
+        set({ isLoading: true });
+        try {
+            const res = await axiosInstance.patch("/users/status-mood", { statusMood });
+            set({ authUser: res.data });
+            toast.success("Status mood updated!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Mood update failed");
             throw error;
         } finally {
             set({ isLoading: false });
@@ -133,7 +150,7 @@ const useAuthStore = create((set) => ({
         try {
             const res = await axiosInstance.post("/auth/google", { credential });
             set({ authUser: res.data });
-            connectSocket(res.data._id);
+            connectSocket();
             requestNotificationPermission();
             toast.success("Signed in with Google!");
         } catch (error) {

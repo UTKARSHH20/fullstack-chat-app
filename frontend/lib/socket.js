@@ -1,36 +1,62 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.MODE === "development"
+const SOCKET_URL =
+  import.meta.env.MODE === "development"
     ? "http://localhost:5001"
     : window.location.origin;
 
 let socket = null;
 
-export const connectSocket = (userId) => {
-    if (socket?.connected) return socket;
+export const connectSocket = () => {
+  if (socket) return socket;
 
-    socket = io(SOCKET_URL, {
-        query: { userId },
-        withCredentials: true,
-    });
+  socket = io(SOCKET_URL, {
+    withCredentials: true,
 
-    socket.on("connect", () => {
-        console.log("[socket] connected:", socket.id);
-    });
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+  });
 
-    socket.on("connect_error", (err) => {
-        console.warn("[socket] connection error:", err.message);
-    });
+  socket.on("connect", () => {
+    console.log("[socket] connected:", socket.id);
+  });
 
-    return socket;
+  socket.on("disconnect", (reason) => {
+    console.warn("[socket] disconnected:", reason);
+  });
+
+  socket.on("reconnect", (attemptNumber) => {
+    console.log(
+      `[socket] reconnected after ${attemptNumber} attempts`
+    );
+
+    // refresh data here if needed
+    // fetchChats();
+    // fetchMessages();
+  });
+
+  socket.on("connect_error", (err) => {
+    console.warn("[socket] connection error:", err.message);
+  });
+
+  return socket;
 };
 
+window.addEventListener("online", () => {
+  if (socket && !socket.connected) {
+    console.log("[socket] network restored");
+    socket.connect();
+  }
+});
+
 export const disconnectSocket = () => {
-    if (socket?.connected) {
-        socket.disconnect();
-        socket = null;
-        console.log("[socket] disconnected");
-    }
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
 };
 
 export const getSocket = () => socket;

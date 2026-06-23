@@ -380,7 +380,8 @@ No framework tricks needed — a simple `hidden md:flex` toggle on the sidebar a
 
 <br/><br/>
 
-**Built and battle-tested by [Utkarsh](https://github.com/UTKARSHH20)**
+- **[Pratikshya32](https://github.com/Pratikshya32)** — Frontend Developer 🎨
+- **[Utkarsh](https://github.com/UTKARSHH20)** — Backend Developer ⚙️
 
 </div>
 
