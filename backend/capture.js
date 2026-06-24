@@ -1,51 +1,67 @@
 import puppeteer from 'puppeteer';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+
+dotenv.config();
+
+const BASE_URL = process.env.SCREENSHOT_URL || 'http://localhost:5173';
+const EMAIL = process.env.SCREENSHOT_EMAIL || 'utkarsh@example.com';
+const PASSWORD = process.env.SCREENSHOT_PASSWORD || 'password123';
+const OUTPUT = process.env.SCREENSHOT_OUTPUT || '../frontend/public/preview.png';
 
 (async () => {
+  let browser;
   try {
     console.log("Launching browser...");
-    const browser = await puppeteer.launch({ headless: "new" });
+    browser = await puppeteer.launch({ headless: "new" });
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 800 });
 
-    console.log("Navigating to http://localhost:5173...");
-    await page.goto('http://localhost:5173');
-    await page.waitForSelector('input[placeholder="you@example.com"]', { timeout: 10000 }).catch(() => { });
+    console.log(`Navigating to ${BASE_URL}...`);
+    await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
+
+    await page.waitForSelector('input[placeholder="you@example.com"]', { timeout: 10000 }).catch(() => {});
 
     const isLogin = await page.$('input[placeholder="you@example.com"]');
     if (isLogin) {
-      console.log("Logging in as utkarsh@example.com...");
-      await page.type('input[placeholder="you@example.com"]', 'utkarsh@example.com');
-      await page.type('input[placeholder="••••••••"]', 'password123');
+      console.log(`Logging in as ${EMAIL}...`);
+      await page.type('input[placeholder="you@example.com"]', EMAIL);
+      await page.type('input[placeholder="••••••••"]', PASSWORD);
       await page.click('button[type="submit"]');
 
-      // Wait for navigation / sidebar
-      await page.waitForSelector('aside', { timeout: 10000 });
+      const sidebar = await page.waitForSelector('aside', { timeout: 10000 }).catch(() => null);
+      if (!sidebar) {
+        throw new Error("Login failed — sidebar did not appear. Check credentials or selectors.");
+      }
       console.log("Logged in successfully.");
     } else {
       console.log("Already logged in or login form not found.");
     }
 
-    // Wait for users to load in sidebar
-    await new Promise(r => setTimeout(r, 2000));
+    console.log("Waiting for sidebar users...");
+    const firstUser = await page.waitForSelector('aside button', { timeout: 10000 }).catch(() => null);
 
-    // Try to click on a user in the sidebar to open the chat window
-    console.log("Clicking on a conversation...");
-    // Find all buttons in the sidebar
-    const userButtons = await page.$$('aside button');
-    if (userButtons.length > 0) {
-      await userButtons[0].click(); // Click the first user (likely Harsh or Pratikshya)
+    if (firstUser) {
+      console.log("Clicking on a conversation...");
+      await firstUser.click();
+      await page.waitForSelector('[class*="chat"]', { timeout: 8000 }).catch(() => {
+        console.warn("Chat window not detected — screenshot may show empty state.");
+      });
+    } else {
+      console.warn("No sidebar users found — screenshot will show empty sidebar.");
     }
 
-    // Wait for messages to load and render
-    await new Promise(r => setTimeout(r, 3000));
+    const dir = path.dirname(OUTPUT);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     console.log("Taking screenshot...");
-    await page.screenshot({ path: '../frontend/public/preview.png' });
-
-    await browser.close();
-    console.log("Screenshot saved to frontend/public/preview.png");
+    await page.screenshot({ path: OUTPUT });
+    console.log(`Screenshot saved to ${OUTPUT}`);
   } catch (error) {
-    console.error("Error capturing screenshot:", error);
+    console.error("Error capturing screenshot:", error.message);
     process.exit(1);
+  } finally {
+    if (browser) await browser.close();
   }
 })();
