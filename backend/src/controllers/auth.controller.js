@@ -248,3 +248,22 @@ export const subscribeToPush = catchAsync(async (req, res) => {
         
         res.status(200).json({ message: "Push subscription saved" });
 });
+
+export const updatePublicKey = catchAsync(async (req, res) => {
+    const { publicKey } = req.body;
+    if (!publicKey) {
+        return res.status(400).json({ message: "Public key is required" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.userId,
+        { publicKey },
+        { new: true }
+    ).select("-password -__v");
+
+    if (!user) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(user);
+});

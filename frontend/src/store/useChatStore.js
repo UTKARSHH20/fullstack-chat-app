@@ -3,9 +3,27 @@ import toast from "react-hot-toast";
 import axiosInstance from "../../lib/axios";
 import { getSocket } from "../../lib/socket";
 import useAuthStore from "./useAuthStore";
+import { encryptMessage, decryptMessage } from "../../lib/crypto";
 
 // MEMORY LOCK QUEUE: Prevents async race conditions on rapid emoji clicks
 const reactionQueues = {};
+
+const decryptSingleMessage = async (msg, userId, otherPublicKey) => {
+    if (msg.isEncrypted && msg.message && msg.iv && otherPublicKey) {
+        try {
+            const decrypted = await decryptMessage(userId, msg.message, msg.iv, otherPublicKey);
+            return { ...msg, message: decrypted };
+        } catch (err) {
+            console.error("Decryption failed for message", msg._id, err);
+            return { ...msg, message: "[Decryption Error: Key mismatch or missing key]" };
+        }
+    }
+    return msg;
+};
+
+const decryptMessages = async (messagesList, userId, otherPublicKey) => {
+    return await Promise.all(messagesList.map(m => decryptSingleMessage(m, userId, otherPublicKey)));
+};
 
 const useChatStore = create((set, get) => ({
     users: [],
@@ -43,8 +61,11 @@ const useChatStore = create((set, get) => ({
         set({ isMessagesLoading: true });
         try {
             const res = await axiosInstance.get(`/messages/${userId}`);
+            const { authUser } = useAuthStore.getState();
+            const { selectedUser } = get();
+            const decrypted = await decryptMessages(res.data.messages, authUser?._id, selectedUser?.publicKey);
             set({
-                messages: res.data.messages,
+                messages: decrypted,
                 hasMore: res.data.hasMore,
             });
         } catch (error) {
@@ -64,8 +85,11 @@ const useChatStore = create((set, get) => ({
             const res = await axiosInstance.get(
                 `/messages/${userId}?before=${oldestId}&limit=30`
             );
+            const { authUser } = useAuthStore.getState();
+            const { selectedUser } = get();
+            const decrypted = await decryptMessages(res.data.messages, authUser?._id, selectedUser?.publicKey);
             set({
-                messages: [...res.data.messages, ...messages],
+                messages: [...decrypted, ...messages],
                 hasMore: res.data.hasMore,
             });
         } catch {
@@ -80,7 +104,7 @@ const useChatStore = create((set, get) => ({
         const { authUser } = useAuthStore.getState();
         if (!selectedUser || !authUser) return;
 
-        // Optimistic UI Update
+        // Optimistic UI Update using plaintext message
         const tempId = "temp-" + Date.now();
         const optimisticMsg = {
             _id: tempId,
@@ -94,12 +118,28 @@ const useChatStore = create((set, get) => ({
 
         set({ messages: [...messages, optimisticMsg] });
 
+        let finalMessageData = { ...messageData };
+        const hasE2EE = !!selectedUser.publicKey && !!authUser.publicKey;
+
+        if (hasE2EE && messageData.message) {
+            try {
+                const encrypted = await encryptMessage(authUser._id, messageData.message, selectedUser.publicKey);
+                finalMessageData.message = encrypted.ciphertext;
+                finalMessageData.iv = encrypted.iv;
+                finalMessageData.isEncrypted = true;
+            } catch (err) {
+                console.error("E2EE Encryption failed, falling back to plaintext", err);
+            }
+        }
+
         try {
-            const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+            const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, finalMessageData);
             
-            // Replace temporary message with the real one from the server
+            const decryptedMsg = await decryptSingleMessage(res.data, authUser._id, selectedUser.publicKey);
+
+            // Replace temporary message with the real decrypted one from the server
             set((state) => ({
-                messages: state.messages.map(m => m._id === tempId ? res.data : m)
+                messages: state.messages.map(m => m._id === tempId ? decryptedMsg : m)
             }));
 
             // Update sidebar: lastMessage for this user
@@ -109,12 +149,12 @@ const useChatStore = create((set, get) => ({
                         ? {
                               ...u,
                               lastMessage: {
-                                  _id: res.data._id,
-                                  message: res.data.message,
-                                  image: !!res.data.image,
-                                  audio: !!res.data.audio,
-                                  senderId: res.data.senderId,
-                                  createdAt: res.data.createdAt,
+                                  _id: decryptedMsg._id,
+                                  message: decryptedMsg.message,
+                                  image: !!decryptedMsg.image,
+                                  audio: !!decryptedMsg.audio,
+                                  senderId: decryptedMsg.senderId,
+                                  createdAt: decryptedMsg.createdAt,
                               },
                           }
                         : u
@@ -187,15 +227,25 @@ const useChatStore = create((set, get) => ({
         const socket = getSocket();
         if (!socket) return;
 
-        socket.on("newMessage", (message) => {
+        socket.on("newMessage", async (message) => {
             const { selectedUser, messages, users } = get();
             const authUser = useAuthStore.getState().authUser;
+            if (!authUser) return;
 
             // Normalize all IDs to strings to avoid ObjectId vs string mismatches
             const msgSenderId   = message.senderId?.toString();
             const msgReceiverId = message.receiverId?.toString();
             const selUserId     = selectedUser?._id?.toString();
             const authUserId2   = authUser?._id?.toString();
+            const iSentThis     = msgSenderId === authUserId2;
+
+            // Get the appropriate public key to derive secret
+            const senderUser = users.find((u) => u._id?.toString() === msgSenderId);
+            const otherUserPublicKey = iSentThis 
+                ? selectedUser?.publicKey 
+                : senderUser?.publicKey;
+
+            const decryptedMsg = await decryptSingleMessage(message, authUser._id, otherUserPublicKey);
 
             // If message is from the selected user OR sent by me to the selected user (from another device)
             const isFromSelectedUser = !!selUserId && msgSenderId === selUserId;
@@ -203,9 +253,9 @@ const useChatStore = create((set, get) => ({
             
             if (isFromSelectedUser || isToSelectedUser) {
                 // Prevent duplicate optimistic messages on the sending device
-                const msgExists = messages.some(m => m._id?.toString() === message._id?.toString());
+                const msgExists = messages.some(m => m._id?.toString() === decryptedMsg._id?.toString());
                 if (!msgExists) {
-                    set({ messages: [...messages, message] });
+                    set({ messages: [...messages, decryptedMsg] });
                 }
                 
                 // Mark as seen if it's from them (and chat is open)
@@ -216,9 +266,6 @@ const useChatStore = create((set, get) => ({
 
             // --- Sidebar update ---
             // Identify the "other person" in the conversation regardless of who sent it.
-            // If I sent it (from another device), the other person is the receiver.
-            // If someone else sent it to me, the other person is the sender.
-            const iSentThis = msgSenderId === authUserId2;
             const otherUserId = iSentThis ? msgReceiverId : msgSenderId;
             const otherUserInSidebar = users.find((u) => u._id?.toString() === otherUserId);
 
@@ -229,15 +276,15 @@ const useChatStore = create((set, get) => ({
                             ? {
                                   ...u,
                                   lastMessage: {
-                                      _id: message._id,
-                                      message: message.message,
-                                      image: !!message.image,
-                                      audio: !!message.audio,
-                                      senderId: message.senderId,
-                                      createdAt: message.createdAt,
+                                      _id: decryptedMsg._id,
+                                      message: decryptedMsg.message,
+                                      image: !!decryptedMsg.image,
+                                      audio: !!decryptedMsg.audio,
+                                      senderId: decryptedMsg.senderId,
+                                      createdAt: decryptedMsg.createdAt,
                                   },
                                   // Increment unread only if:
-                                  //   - I did NOT send this message (i.e. it came from the other person)
+                                  //   - I did NOT send this message
                                   //   - AND this is not the currently open chat
                                   unreadCount:
                                       iSentThis || state.selectedUser?._id?.toString() === otherUserId
@@ -256,7 +303,7 @@ const useChatStore = create((set, get) => ({
             if (document.visibilityState !== "visible" && Notification.permission === "granted") {
                 const sender = users.find((u) => u._id?.toString() === msgSenderId);
                 const senderName = sender?.name || "Someone";
-                const body = message.message || (message.audio ? "🎤 Voice message" : "📷 Image");
+                const body = decryptedMsg.message || (decryptedMsg.audio ? "🎤 Voice message" : "📷 Image");
                 const n = new Notification(`New message from ${senderName}`, {
                     body,
                     icon: "/favicon.png",

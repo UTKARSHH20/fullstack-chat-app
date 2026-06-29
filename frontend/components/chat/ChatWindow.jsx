@@ -529,7 +529,14 @@ setShowSpamWarning(
                 </button>
                 <Avatar user={selectedUser} isOnline={isOnline} />
                 <div>
-                    <p className="font-semibold text-sm">{selectedUser.name}</p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-sm">{selectedUser.name}</p>
+                        {selectedUser.publicKey && authUser.publicKey ? (
+                            <span className="badge badge-success badge-outline text-[10px] py-0 px-1 flex items-center gap-0.5" title="End-to-End Encrypted">
+                                🔒 E2EE
+                            </span>
+                        ) : null}
+                    </div>
                     {selectedUser.statusMood ? (
                         <p className="text-xs text-base-content/60">
                             {getStatusMoodLabel(selectedUser.statusMood)}

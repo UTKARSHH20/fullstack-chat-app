@@ -52,6 +52,10 @@ const userSchema = new mongoose.Schema({
         default: null,
         trim: true,
     },
+    publicKey: {
+        type: String,
+        default: null,
+    },
 }, { timestamps: true });
 
 userSchema.index({ name: "text" });
