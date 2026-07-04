@@ -6,6 +6,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { authIpLimiter, authUserLimiter } from "./middleware/rateLimit.middleware.js";
 import compression from "compression"; // <-- Clean & Simple Import
 import path from "path";
 import { fileURLToPath } from "url";
@@ -87,14 +88,6 @@ app.use((req, res, next) => {
 });
 
 // Rate Limiting Policy Declarations
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    message: { message: "Too many attempts, please try again later" },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
 const messageLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
     max: 60,
@@ -104,8 +97,8 @@ const messageLimiter = rateLimit({
 });
 
 // Primary Endpoint Route Mappings
-app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/users", authLimiter, userRoutes);
+app.use("/api/auth", authIpLimiter, authUserLimiter, authRoutes);
+app.use("/api/users", authIpLimiter, authUserLimiter, userRoutes);
 app.use("/api/messages", messageLimiter, messageRoutes);
 app.use("/api/messages", messageLimiter, scheduledMessageRoutes);
 app.use("/api/analytics", analyticsRoutes);
